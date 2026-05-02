@@ -322,7 +322,7 @@
 
       // Descargas
       const descEl = document.getElementById('detalleDescargas')
-      if (p.descargas && p.descargas > 0) {
+      if (Number(p.descargas) > 0) {
         document.getElementById('detalleDescargasNum').textContent = p.descargas.toLocaleString()
         descEl.style.display = 'flex'
       } else {

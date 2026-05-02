@@ -12,7 +12,7 @@
 
       // Ordenar solo por id en la query (evita errores si 'orden' no existe o no tiene índice)
       // El orden visual se aplica después en JS con el campo orden
-      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: true })
+      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: false })
 
       if (error) {
         divProductos.innerHTML = '<p class="cargando">Error al cargar productos. Verificá las políticas de acceso en Supabase.</p>'
@@ -20,12 +20,8 @@
         return
       }
 
-      productos = (data || []).sort((a, b) => {
-        const oa = a.orden ?? 999999
-        const ob = b.orden ?? 999999
-        if (oa !== ob) return oa - ob
-        return a.id - b.id
-      })
+      // Guardar sin ordenar — el orden se aplica en renderProductos según ordenActual
+      productos = data || []
       statTotal.textContent = productos.length
       renderProductos()
     }
@@ -47,17 +43,12 @@
         if (t) filtrados = filtrados.filter(p => matchTema(p, t.palabras))
       }
 
-      // Ordenamiento: por defecto orden de llegada (id), o por descargas
+      // Ordenamiento
       if (ordenActual === 'descargas') {
         filtrados.sort((a, b) => (Number(b.descargas) || 0) - (Number(a.descargas) || 0))
       } else {
-        // 'llegada': orden por id ascendente (orden de sincronización)
-        filtrados.sort((a, b) => {
-          const oa = a.orden ?? 999999
-          const ob = b.orden ?? 999999
-          if (oa !== ob) return oa - ob
-          return a.id - b.id
-        })
+        // 'llegada': más nuevos primero, ignorar campo orden completamente
+        filtrados.sort((a, b) => b.id - a.id)
       }
 
       if (filtrados.length === 0) {
@@ -90,7 +81,7 @@
             <div class="card__overlay">
               <p class="card__nombre-overlay">${p.nombre}</p>
               <p class="card__precio-overlay">${precioTexto}</p>
-              ${p.descargas ? `<p class="card__descargas-overlay">↓ ${Number(p.descargas).toLocaleString()}</p>` : ''}
+              ${Number(p.descargas) > 0 ? `<p class="card__descargas-overlay">↓ ${Number(p.descargas).toLocaleString()}</p>` : ''}
             </div>
             ${esAdmin ? `
               <div class="card__admin-btns" onclick="event.stopPropagation()">
@@ -162,7 +153,7 @@
                 <div class="card__overlay">
                   <p class="card__nombre-overlay">${p.nombre}</p>
                   <p class="card__precio-overlay">${precioTexto}</p>
-                  ${p.descargas ? `<p class="card__descargas-overlay">↓ ${Number(p.descargas).toLocaleString()}</p>` : ''}
+                  ${Number(p.descargas) > 0 ? `<p class="card__descargas-overlay">↓ ${Number(p.descargas).toLocaleString()}</p>` : ''}
                 </div>
                 ${esAdmin ? `
                   <div class="card__admin-btns" onclick="event.stopPropagation()">
