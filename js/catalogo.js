@@ -12,7 +12,7 @@
 
       // Ordenar solo por id en la query (evita errores si 'orden' no existe o no tiene índice)
       // El orden visual se aplica después en JS con el campo orden
-      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: false })
+      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: true })
 
       if (error) {
         divProductos.innerHTML = '<p class="cargando">Error al cargar productos. Verificá las políticas de acceso en Supabase.</p>'
@@ -20,7 +20,6 @@
         return
       }
 
-      // Guardar sin ordenar — el orden se aplica en renderProductos según ordenActual
       productos = data || []
       statTotal.textContent = productos.length
       renderProductos()
@@ -47,8 +46,8 @@
       if (ordenActual === 'descargas') {
         filtrados.sort((a, b) => (Number(b.descargas) || 0) - (Number(a.descargas) || 0))
       } else {
-        // 'llegada': más nuevos primero, ignorar campo orden completamente
-        filtrados.sort((a, b) => b.id - a.id)
+        // 'llegada': más nuevos primero por id DESC
+        filtrados.sort((a, b) => Number(b.id) - Number(a.id))
       }
 
       if (filtrados.length === 0) {
@@ -68,7 +67,6 @@
         const esGratis = precio === 0
         return `
         <article class="card" data-id="${p.id}" data-cat="${p.categoria}" onclick="window.abrirDetalle('${p.id}')" style="cursor:pointer">
-          <span class="card__drag-handle" title="Arrastrá para reordenar">⠿</span>
           <div class="card__img-wrap">
             ${p.imagen_url
               ? (p.imagen_url.match(/\.mp4(\?|$)/i)
@@ -140,8 +138,7 @@
             art.style.animationDelay = `${(idx % 20) * 30}ms`
             art.setAttribute('onclick', `window.abrirDetalle('${p.id}')`)
             art.innerHTML = `
-              <span class="card__drag-handle" title="Arrastrá para reordenar">⠿</span>
-              <div class="card__img-wrap">
+                  <div class="card__img-wrap">
                 ${p.imagen_url
                   ? (p.imagen_url.match(/\.mp4(\?|$)/i)
                     ? `<video src="${p.imagen_url}" class="card__img card__video lazy-video" muted loop playsinline preload="none" onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video>`
@@ -188,12 +185,10 @@
               </div>`)
             document.getElementById('btnVerMas').addEventListener('click', handleVerMas)
           }
-          if (esAdmin) initDragDrop()
-        }
+            }
         document.getElementById('btnVerMas').addEventListener('click', handleVerMas)
       }
 
-      if (esAdmin) initDragDrop()
     }
 
     function labelCategoria(cat) {
@@ -201,86 +196,6 @@
       return labels[cat] || cat
     }
 
-    // ══════════════════════════════════════════
-    //  DRAG AND DROP PARA REORDENAR EN GRILLA
-    // ══════════════════════════════════════════
-    let _dragDropInit = false
-    function initDragDrop() {
-      const grid = document.getElementById('productos')
-      grid.classList.add('drag-mode')
-      // Usar delegación de eventos — solo UNA vez, no por cada render
-      if (_dragDropInit) {
-        // Ya inicializado, solo marcar cards como draggable
-        grid.querySelectorAll('.card').forEach(c => c.setAttribute('draggable','true'))
-        return
-      }
-      _dragDropInit = true
-      let dragSrc = null
-
-      grid.addEventListener('dragstart', e => {
-        const card = e.target.closest('.card')
-        if (!card) return
-        dragSrc = card
-        card.classList.add('dragging')
-        e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData('text/plain', card.dataset.id)
-      })
-      grid.addEventListener('dragend', e => {
-        const card = e.target.closest('.card')
-        if (card) card.classList.remove('dragging')
-        grid.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'))
-      })
-      grid.addEventListener('dragover', e => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
-        const card = e.target.closest('.card')
-        if (card && card !== dragSrc) {
-          grid.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'))
-          card.classList.add('drag-over')
-        }
-      })
-      grid.addEventListener('dragleave', e => {
-        const card = e.target.closest('.card')
-        if (card) card.classList.remove('drag-over')
-      })
-      grid.addEventListener('drop', async e => {
-        e.preventDefault()
-        e.stopPropagation()
-        const card = e.target.closest('.card')
-        if (!card) return
-        card.classList.remove('drag-over')
-        if (!dragSrc || dragSrc === card) return
-        const allCards = [...grid.querySelectorAll('.card')]
-        const srcIdx = allCards.indexOf(dragSrc)
-        const dstIdx = allCards.indexOf(card)
-        if (srcIdx < dstIdx) grid.insertBefore(dragSrc, card.nextSibling)
-        else grid.insertBefore(dragSrc, card)
-        await guardarOrden()
-      })
-      // Marcar cards actuales como draggable
-      grid.querySelectorAll('.card').forEach(c => c.setAttribute('draggable','true'))
-    }
-
-    async function guardarOrden() {
-      const cards = document.querySelectorAll('#productos .card')
-      const updates = [...cards].map((card, i) => ({
-        id: card.dataset.id,
-        orden: i
-      }))
-      // Actualizar cada producto con su nuevo orden
-      for (const u of updates) {
-        await supabase.from('productos').update({ orden: u.orden }).eq('id', u.id)
-      }
-      // Recargar sin mover la posición visual (el orden ya está en la BD)
-      const { data } = await supabase.from('productos').select('*').order('orden', { ascending: true })
-      productos = (data || []).sort((a, b) => {
-        const oa = a.orden ?? 999999
-        const ob = b.orden ?? 999999
-        return oa - ob
-      })
-      statTotal.textContent = productos.length
-      // No re-renderizar para no perder la posición visual actual
-    }
 
     document.getElementById('buscador').addEventListener('input', e => {
       const val = e.target.value

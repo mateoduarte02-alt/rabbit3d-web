@@ -21,7 +21,6 @@
     function desactivarAdmin() {
       esAdmin = false
       adminBar.classList.remove('activo')
-      document.getElementById('productos').classList.remove('drag-mode')
       document.getElementById('ytAdminBar').style.display = 'none'
       ;['stl','llavero','caja','maceta','marco','cortante'].forEach(t => {
         const ov = document.getElementById('hcard-edit-' + t)
@@ -346,7 +345,6 @@
       document.getElementById('productoDesc').value = p.descripcion || ''
       document.getElementById('productoPrecio').value = p.precio
       document.getElementById('productoCategoria').value = p.categoria
-      document.getElementById('productoOrden').value = p.orden ?? ''
       document.getElementById('productoImagen').value = p.imagen_url || ''
       document.getElementById('productoImagenFile').value = ''
       const preview = document.getElementById('uploadPreview')
@@ -369,15 +367,13 @@
       const precio   = parseFloat(document.getElementById('productoPrecio').value)
       const categoria= document.getElementById('productoCategoria').value
       const imagen   = document.getElementById('productoImagen').value.trim()
-      const ordenVal = document.getElementById('productoOrden').value
-      const orden    = ordenVal !== '' ? parseInt(ordenVal) : null
 
       if (!nombre || isNaN(precio)) {
         productoError.textContent = 'Nombre y precio son obligatorios.'
         return
       }
 
-      const datos = { nombre, descripcion: desc, precio, categoria, imagen_url: imagen || null, orden }
+      const datos = { nombre, descripcion: desc, precio, categoria, imagen_url: imagen || null }
       let error
       if (id) {
         ;({ error } = await supabase.from('productos').update(datos).eq('id', id))
@@ -865,6 +861,7 @@
                 illustrationImageUrl
                 downloadsCount
                 shortUrl
+                publishedAt
                 price(currency: USD) { cents }
               }
             }
@@ -906,6 +903,10 @@
         return
       }
 
+      // Invertir para insertar del más viejo al más nuevo
+      // Así los IDs de Supabase quedan en orden cronológico correcto
+      todosLosDiseños.reverse()
+
       // Importar solo los nuevos
       btn.textContent = `Importando ${todosLosDiseños.length} diseños...`
       let nuevos = 0, duplicados = 0
@@ -939,7 +940,8 @@
             cults_url: d.shortUrl || null,
             cults_id: cultsId,
             descargas: d.downloadsCount || 0,
-            es_gratis: esGratis
+            es_gratis: esGratis,
+            published_at: d.publishedAt || null
           }])
           nuevos++
           cultsIdsExistentes.add(cultsId)
@@ -954,6 +956,7 @@
                 descargas: d.downloadsCount || 0,
                 es_gratis: precio === 0,
                 cults_url: d.shortUrl || null,
+                published_at: d.publishedAt || null,
                 imagen_url: d.illustrationImageUrl || null,
                 descripcion: d.description || null,
               })
