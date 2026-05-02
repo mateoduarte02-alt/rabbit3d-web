@@ -2,8 +2,11 @@
 // emprendedor.js — La Madriguera
 // ═══════════════════════════════════════════════════
 
-    let _maintTools = {}       // { toolId: true/false }
-    let _maintLoaded = false
+    // ══════════════════════════════════════════════════════
+    //  SISTEMA DE MANTENIMIENTO — todo en un solo scope
+    // ══════════════════════════════════════════════════════
+    var _maintTools = {}      // { toolId: true/false }
+    var _maintLoaded = false
 
     async function cargarMantenimiento() {
       if (_maintLoaded) return
@@ -21,13 +24,11 @@
 
     function _estaEnMant(toolId) { return !!_maintTools[toolId] }
 
-    // Muestra overlay visual en la card si está en mantenimiento
     function _aplicarOverlaysMant() {
-      Object.entries(_maintTools).forEach(function(entry) { var id=entry[0], enMant=entry[1];
-        // Cards de laboratorio
+      Object.entries(_maintTools).forEach(function(entry) {
+        var id=entry[0], enMant=entry[1]
         const labCard = document.querySelector('.herramienta-card[onclick*="modal-' + id + '"]')
         if (labCard) _toggleMantOverlay(labCard, id, enMant, 'lab')
-        // Cards de emprendedores
         const emprCard = document.querySelector('[data-empr-id="' + id + '"]')
         if (emprCard) _toggleMantOverlay(emprCard, id, enMant, 'empr')
       })
@@ -50,28 +51,6 @@
       }
     }
 
-    // Interceptar abrirHerramienta y abrirEmprendedor para bloquear si está en mant
-    const _origAbrirH_mant = window.abrirHerramienta
-    window.abrirHerramienta = function(id) {
-      const toolId = id.replace('modal-','')
-      if (_estaEnMant(toolId) && !esAdmin) {
-        // Mostrar toast de mantenimiento
-        _mostrarToastMant()
-        return
-      }
-      _origAbrirH_mant(id)
-    }
-
-    const _origAbrirE_mant = window.abrirEmprendedor
-    window.abrirEmprendedor = function(id) {
-      const toolId = id.replace('modal-','')
-      if (_estaEnMant(toolId) && !esAdmin) {
-        _mostrarToastMant()
-        return
-      }
-      _origAbrirE_mant(id)
-    }
-
     function _mostrarToastMant() {
       const t = document.createElement('div')
       t.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid #f59e0b;color:#f59e0b;padding:.6rem 1.2rem;border-radius:8px;font-size:.8rem;font-weight:600;z-index:99999;display:flex;align-items:center;gap:.5rem;box-shadow:0 4px 20px rgba(0,0,0,.5)'
@@ -80,7 +59,111 @@
       setTimeout(() => t.remove(), 3000)
     }
 
-    // Cargar estado de mantenimiento al iniciar
+    // Interceptar apertura de herramientas
+    const _origAbrirH_mant = window.abrirHerramienta
+    window.abrirHerramienta = function(id) {
+      const toolId = id.replace('modal-','')
+      if (_estaEnMant(toolId) && !esAdmin) { _mostrarToastMant(); return }
+      _origAbrirH_mant(id)
+    }
+    const _origAbrirE_mant = window.abrirEmprendedor
+    window.abrirEmprendedor = function(id) {
+      const toolId = id.replace('modal-','')
+      if (_estaEnMant(toolId) && !esAdmin) { _mostrarToastMant(); return }
+      _origAbrirE_mant(id)
+    }
+
+    // ── Gestor de Mantenimiento (admin) — mismo scope que _maintTools ──────
+    window._getMantTools = function() {
+      var tools = []
+      document.querySelectorAll('.herramienta-card[onclick]').forEach(function(card) {
+        var onc = card.getAttribute('onclick') || ''
+        var raw = '', q1=onc.indexOf("'"), q2=onc.indexOf("'",q1+1)
+        var q3=onc.indexOf('"'), q4=onc.indexOf('"',q3+1)
+        if (q1>=0&&q2>q1) raw=onc.slice(q1+1,q2)
+        else if (q3>=0&&q4>q3) raw=onc.slice(q3+1,q4)
+        if (!raw) return
+        var id=raw.indexOf('modal-')===0?raw.slice(6):raw
+        var titulo=card.querySelector('h3,.herramienta-card__title')
+        var label=titulo?titulo.textContent.trim():id
+        if (!tools.find(function(t){return t.id===id})) tools.push({id:id,label:label,tipo:'lab'})
+      })
+      document.querySelectorAll('[data-empr-id]').forEach(function(card) {
+        var id=card.getAttribute('data-empr-id')
+        if (!id) return
+        var titulo=card.querySelector('h3,.empr-card__title')
+        var label=titulo?titulo.textContent.trim():id
+        if (!tools.find(function(t){return t.id===id})) tools.push({id:id,label:label,tipo:'empr'})
+      })
+      return tools
+    }
+
+    window.abrirGestorMantenimiento = async function() {
+      const modal = document.getElementById('modalGestorMant')
+      modal.style.display = 'flex'
+      try {
+        const { data } = await supabase.from('media')
+          .select('tipo,nombre').like('tipo','config-maint-%')
+        _maintTools = {}
+        if (data) data.forEach(r => {
+          _maintTools[r.tipo.replace('config-maint-','')] = r.nombre === '1'
+        })
+      } catch(e) {}
+      _renderMantListas()
+    }
+
+    function _renderMantListas() {
+      var MANT_TOOLS = window._getMantTools()
+      ;['lab','empr'].forEach(tipo => {
+        const lista = document.getElementById('mantLista' + (tipo==='lab'?'Lab':'Empr'))
+        if (!lista) return
+        lista.innerHTML = ''
+        if (!MANT_TOOLS.filter(t => t.tipo === tipo).length) {
+          lista.innerHTML = '<p style="font-size:.7rem;color:var(--muted);padding:.3rem">No hay herramientas registradas.</p>'
+          return
+        }
+        MANT_TOOLS.filter(t => t.tipo === tipo).forEach(tool => {
+          const enMant = !!_maintTools[tool.id]
+          const row = document.createElement('div')
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
+          row.innerHTML = `
+            <span style="font-size:.78rem;color:var(--text)">${tool.label}</span>
+            <button data-tool-id="${tool.id}" data-en-mant="${enMant}"
+              style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
+                background:${enMant ? 'rgba(245,158,11,.15)' : 'rgba(21,154,156,.15)'};
+                color:${enMant ? '#f59e0b' : '#4ecca3'}"
+              onclick="toggleMantTool(this)">
+              ${enMant ? '🔧 En mantenimiento' : '✅ Activa'}
+            </button>`
+          lista.appendChild(row)
+        })
+      })
+    }
+
+    window.toggleMantTool = async function(btn) {
+      const id = btn.dataset.toolId
+      const enMant = btn.dataset.enMant === 'true'
+      const nuevoEstado = !enMant
+      btn.disabled = true
+      btn.textContent = '...'
+      try {
+        await supabase.from('media').delete().eq('tipo','config-maint-'+id)
+        if (nuevoEstado) {
+          await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'', nombre:'1'}])
+        }
+        _maintTools[id] = nuevoEstado
+        const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+        if (labCard) _toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+        const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+        if (emprCard) _toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+        _renderMantListas()
+      } catch(e) {
+        btn.disabled = false
+        alert('Error al guardar: ' + (e.message || e))
+      }
+    }
+
+    // Cargar al iniciar
     cargarMantenimiento()
     // ── Fin sistema de mantenimiento ──────────────────────────────────────────
 
