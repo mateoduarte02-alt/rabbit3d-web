@@ -146,21 +146,32 @@
       const nuevoEstado = !enMant
       btn.disabled = true
       btn.textContent = '...'
-      try {
-        await supabase.from('media').delete().eq('tipo','config-maint-'+id)
-        if (nuevoEstado) {
-          await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'', nombre:'1'}])
+
+      // Upsert: insert o update si ya existe el tipo
+      // Usar nombre = 'mant-<id>-1' o 'mant-<id>-0' para evitar conflicto de unique en nombre
+      const nombreVal = 'mant-' + id + (nuevoEstado ? '-1' : '-0')
+      const { data: existente } = await supabase.from('media').select('id').eq('tipo','config-maint-'+id).maybeSingle()
+      let opErr
+      if (existente) {
+        const res = await supabase.from('media').update({ nombre: nuevoEstado?'1':'0' }).eq('tipo','config-maint-'+id)
+        opErr = res.error
+      } else if (nuevoEstado) {
+        const res = await supabase.from('media').insert([{ tipo:'config-maint-'+id, url:'', nombre:'1' }])
+        opErr = res.error
+        // Si falla por unique en nombre, intentar con nombre único
+        if (opErr && opErr.code === '23505') {
+          const res2 = await supabase.from('media').insert([{ tipo:'config-maint-'+id, url:'', nombre:nombreVal }])
+          opErr = res2.error
         }
-        _maintTools[id] = nuevoEstado
-        const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
-        if (labCard) _toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
-        const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
-        if (emprCard) _toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
-        _renderMantListas()
-      } catch(e) {
-        btn.disabled = false
-        alert('Error al guardar: ' + (e.message || e))
       }
+      if (opErr) { alert('Error al guardar: ' + opErr.message); btn.disabled=false; btn.textContent=enMant?'🔧 En mantenimiento':'✅ Activa'; return }
+
+      _maintTools[id] = nuevoEstado
+      const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+      if (labCard) _toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+      const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+      if (emprCard) _toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+      _renderMantListas()
     }
 
     // Cargar al iniciar
