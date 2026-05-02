@@ -12,10 +12,11 @@
       if (_maintLoaded) return
       try {
         const { data } = await supabase.from('media')
-          .select('tipo,nombre').like('tipo','config-maint-%')
+          .select('tipo,nombre,url').like('tipo','config-maint-%')
         if (data) data.forEach(r => {
           const id = r.tipo.replace('config-maint-','')
-          _maintTools[id] = r.nombre === '1'
+          // Estado en campo url: '1'=mantenimiento, '0' o vacío=activa
+          _maintTools[id] = (r.url === '1' || r.nombre === '1')
         })
         _maintLoaded = true
         _aplicarOverlaysMant()
@@ -103,10 +104,10 @@
       modal.style.display = 'flex'
       try {
         const { data } = await supabase.from('media')
-          .select('tipo,nombre').like('tipo','config-maint-%')
+          .select('tipo,nombre,url').like('tipo','config-maint-%')
         _maintTools = {}
         if (data) data.forEach(r => {
-          _maintTools[r.tipo.replace('config-maint-','')] = r.nombre === '1'
+          _maintTools[r.tipo.replace('config-maint-','')] = (r.url === '1' || r.nombre === '1')
         })
       } catch(e) {}
       _renderMantListas()
@@ -147,24 +148,34 @@
       btn.disabled = true
       btn.textContent = '...'
 
-      // Upsert: insert o update si ya existe el tipo
-      // Usar nombre = 'mant-<id>-1' o 'mant-<id>-0' para evitar conflicto de unique en nombre
-      const nombreVal = 'mant-' + id + (nuevoEstado ? '-1' : '-0')
-      const { data: existente } = await supabase.from('media').select('id').eq('tipo','config-maint-'+id).maybeSingle()
+      // Guardar estado en campo url ('1'=mant, '0'=activa)
+      // nombre = 'cfg_maint_<id>' — único por herramienta, evita conflicto de unique constraint
+      const tipo = 'config-maint-' + id
+      const nombreUniq = 'cfg_maint_' + id
+
+      const { data: existente } = await supabase.from('media')
+        .select('id').eq('tipo', tipo).maybeSingle()
+
       let opErr
       if (existente) {
-        const res = await supabase.from('media').update({ nombre: nuevoEstado?'1':'0' }).eq('tipo','config-maint-'+id)
+        // Ya existe: solo actualizar el campo url con el nuevo estado
+        const res = await supabase.from('media')
+          .update({ url: nuevoEstado ? '1' : '0' })
+          .eq('tipo', tipo)
         opErr = res.error
-      } else if (nuevoEstado) {
-        const res = await supabase.from('media').insert([{ tipo:'config-maint-'+id, url:'', nombre:'1' }])
+      } else {
+        // No existe: insertar nuevo registro con nombre único
+        const res = await supabase.from('media')
+          .insert([{ tipo, url: nuevoEstado ? '1' : '0', nombre: nombreUniq }])
         opErr = res.error
-        // Si falla por unique en nombre, intentar con nombre único
-        if (opErr && opErr.code === '23505') {
-          const res2 = await supabase.from('media').insert([{ tipo:'config-maint-'+id, url:'', nombre:nombreVal }])
-          opErr = res2.error
-        }
       }
-      if (opErr) { alert('Error al guardar: ' + opErr.message); btn.disabled=false; btn.textContent=enMant?'🔧 En mantenimiento':'✅ Activa'; return }
+
+      if (opErr) {
+        alert('Error al guardar: ' + opErr.message)
+        btn.disabled = false
+        btn.textContent = enMant ? '🔧 En mantenimiento' : '✅ Activa'
+        return
+      }
 
       _maintTools[id] = nuevoEstado
       const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
