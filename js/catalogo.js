@@ -12,7 +12,7 @@
 
       // Ordenar solo por id en la query (evita errores si 'orden' no existe o no tiene índice)
       // El orden visual se aplica después en JS con el campo orden
-      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: true })
+      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: false })
 
       if (error) {
         divProductos.innerHTML = '<p class="cargando">Error al cargar productos. Verificá las políticas de acceso en Supabase.</p>'
