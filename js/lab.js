@@ -1108,34 +1108,43 @@
         return lower.concat(upper)
       }
       function _shapePts(forma,r,segs){
-        var pts=[]
+        var pts=[], i, a, t, n
         if(forma==='circulo'){
-          for(var i=0;i<segs;i++){var a=(i/segs)*Math.PI*2;pts.push([r*Math.cos(a),r*Math.sin(a)])}
+          n=segs||64; for(i=0;i<n;i++){a=(i/n)*Math.PI*2;pts.push([r*Math.cos(a),r*Math.sin(a)])}
         } else if(forma==='cuadrado'){
-          var s=r*0.85;pts=[[-s,-s],[s,-s],[s,s],[-s,s]]
+          var s=r*0.85; pts=[[-s,-s],[s,-s],[s,s],[-s,s]]
         } else if(forma==='estrella'){
           var r2=r*0.38
-          for(var i=0;i<10;i++){
-            var a=(i/10)*Math.PI*2-Math.PI/2,ri=i%2===0?r:r2
-            pts.push([ri*Math.cos(a),ri*Math.sin(a)])
-          }
+          for(i=0;i<10;i++){a=(i/10)*Math.PI*2-Math.PI/2;var ri=i%2===0?r:r2;pts.push([ri*Math.cos(a),ri*Math.sin(a)])}
         } else if(forma==='corazon'){
-          for(var i=0;i<segs;i++){
-            var t=(i/segs)*Math.PI*2
+          // Offset medio punto para que la cúspide (t=0 y t=PI) quede entre
+          // dos vértices — así el miter no explota en ningún vértice
+          n=segs||64
+          for(i=0;i<n;i++){
+            t=((i+0.5)/n)*Math.PI*2
             pts.push([r*0.75*Math.pow(Math.abs(Math.sin(t)),3)*(Math.sin(t)>=0?1:-1),
-                     -r*0.7*(Math.cos(t)-0.3*Math.cos(2*t)-0.15*Math.cos(3*t)-0.05*Math.cos(4*t))])
+                      -r*0.7*(Math.cos(t)-0.3*Math.cos(2*t)-0.15*Math.cos(3*t)-0.05*Math.cos(4*t))])
           }
-        } else if(forma==='cohete'){
-          // Cohete: nariz cónica, cuerpo cilíndrico, aletas laterales
-          var raw=[[0,-1],[0.22,-0.45],[0.22,0.38],[0.55,0.75],[0.55,1],[0.22,0.88],[-0.22,0.88],[-0.55,1],[-0.55,0.75],[-0.22,0.38],[-0.22,-0.45]]
-          for(var i=0;i<raw.length;i++) pts.push([raw[i][0]*r,raw[i][1]*r])
-        } else if(forma==='triangulo'){
-          pts=[[0,-r],[r*0.866,r*0.5],[-r*0.866,r*0.5]]
+                } else if(forma==='triangulo'){
+          // Y negada: punta arriba
+          pts=[[0,r],[-r*0.866,-r*0.5],[r*0.866,-r*0.5]]
         } else if(forma==='hexagono'){
-          for(var i=0;i<6;i++){var a=(i/6)*Math.PI*2-Math.PI/6;pts.push([r*Math.cos(a),r*Math.sin(a)])}
-        } else if(forma==='flecha'){
-          var raw=[[0,-1],[0.5,-0.1],[0.25,-0.1],[0.25,1],[-0.25,1],[-0.25,-0.1],[-0.5,-0.1]]
-          for(var i=0;i<raw.length;i++) pts.push([raw[i][0]*r, raw[i][1]*r])
+          for(i=0;i<6;i++){a=(i/6)*Math.PI*2-Math.PI/6;pts.push([r*Math.cos(a),r*Math.sin(a)])}
+        } else if(forma==='rombo'){
+          pts=[[0,r],[r*0.62,0],[0,-r*0.85],[-r*0.62,0]]
+        } else if(forma==='arbol'){
+          // Árbol: punta arriba, forma más suave para grosor uniforme
+          // Usar polígono con escotaduras menos pronunciadas
+          pts=[
+            [0,r*0.96],
+            [r*0.28,r*0.42],[r*0.16,r*0.42],
+            [r*0.42,r*0.0],[r*0.24,r*0.0],
+            [r*0.55,-r*0.44],[r*0.16,-r*0.44],
+            [r*0.16,-r*0.78],[-r*0.16,-r*0.78],
+            [-r*0.16,-r*0.44],[-r*0.55,-r*0.44],
+            [-r*0.24,r*0.0],[-r*0.42,r*0.0],
+            [-r*0.16,r*0.42],[-r*0.28,r*0.42]
+          ]
         }
         return pts
       }
@@ -1193,39 +1202,47 @@
       // CORTANTE: shell with base flange (like a real cookie cutter)
       // outer wall + inner wall + bottom ring + top ring + base plate (flange)
       // Offset de polígono hacia adentro
+      function _polyArea(pts){
+        var n=pts.length,a=0
+        for(var i=0;i<n;i++){var j=(i+1)%n;a+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1]}
+        return a/2
+      }
+      // Offset uniforme por normal — dist>0 encoge, dist<0 expande
+      // Mantiene mismo nPts que el original para que _ring funcione
       function _offsetPoly(pts,dist){
         var n=pts.length,result=[]
+        var area=_polyArea(pts)
+        var sign=area>=0?1:-1
         for(var i=0;i<n;i++){
           var prev=pts[(i-1+n)%n],curr=pts[i],next=pts[(i+1)%n]
           var dx1=curr[0]-prev[0],dy1=curr[1]-prev[1]
           var len1=Math.sqrt(dx1*dx1+dy1*dy1)||1
-          // Normal inward para CCW en canvas: (-dy/L, dx/L) con dist positivo encoge
-          var nx1=-dy1/len1,ny1=dx1/len1
+          var nx1=sign*(-dy1/len1),ny1=sign*(dx1/len1)
           var dx2=next[0]-curr[0],dy2=next[1]-curr[1]
           var len2=Math.sqrt(dx2*dx2+dy2*dy2)||1
-          var nx2=-dy2/len2,ny2=dx2/len2
+          var nx2=sign*(-dy2/len2),ny2=sign*(dx2/len2)
           var bx=(nx1+nx2)/2,by2=(ny1+ny2)/2
           var bLen=Math.sqrt(bx*bx+by2*by2)||1
           var dot=nx1*nx2+ny1*ny2
-          var miter=1/Math.max(0.25,Math.sqrt((1+dot)/2))
-          var ox=bx/bLen*dist*miter, oy=by2/bLen*dist*miter
-          // Limitar miter para evitar spikes
-          var maxOff=Math.abs(dist)*3
-          if(Math.abs(ox)>maxOff) ox=ox>0?maxOff:-maxOff
-          if(Math.abs(oy)>maxOff) oy=oy>0?maxOff:-maxOff
+          // Miter limitado: máx 2x el grosor de pared
+          var miter=1/Math.max(0.3,Math.sqrt((1+dot)/2))
+          var ox=bx/bLen*dist*miter,oy=by2/bLen*dist*miter
+          var maxOff=Math.abs(dist)*2
+          if(Math.abs(ox)>maxOff)ox=ox>0?maxOff:-maxOff
+          if(Math.abs(oy)>maxOff)oy=oy>0?maxOff:-maxOff
           result.push([curr[0]+ox,curr[1]+oy])
         }
         return result
       }
 
       function _buildCortante(out,forma,size,filo,wall,segs){
-        var r=size/2
+        var r=size/2, rIn=Math.max(1,r-wall)
         var outer=_shapePts(forma,r,segs)
-        var inner=_shapePts(forma,Math.max(0.5,r-wall),segs)
+        var inner=_shapePts(forma,rIn,segs)
+        _ring(out,outer,inner,0,false)
         _wall(out,outer,0,filo,true)
         _wall(out,inner,0,filo,false)
         _ring(out,outer,inner,filo,true)
-        _ring(out,outer,inner,0,false)
       }
 
       // ── CAJA CON TAPA ────────────────────────────────────────────────
@@ -1384,7 +1401,7 @@
       var cortGL=null, cortForma='estrella'
       window.cortSetForma=function(f){
         cortForma=f
-        ;['estrella','corazon','circulo','cuadrado','cohete','triangulo','hexagono','flecha'].forEach(function(x){
+        ;['estrella','corazon','circulo','cuadrado','triangulo','hexagono','rombo','arbol'].forEach(function(x){
           document.getElementById('cort-tog'+x.charAt(0).toUpperCase()+x.slice(1)).className='stl-tog'+(x===f?' stl-tog--active':'')
         })
         cortRebuild()
@@ -1403,36 +1420,44 @@
         }
       }
       function cortRebuild(){
-        if(!cortGL) cortGL=createGLRenderer('cort-canvas', -0.3, 0.3)
+        if(!cortGL) cortGL=createGLRenderer('cort-canvas', 0.4, 0.3)
         if(!cortGL) return
         var p=cortGetP()
         var flangeH=p.flangeH, flangeW=p.flangeW
         var totH=p.filo+flangeH
         var sc=1.1/Math.max(p.size+flangeW*2, totH)
-        var segs=['cuadrado'].indexOf(cortForma)>=0?4:['estrella'].indexOf(cortForma)>=0?10:['cohete','triangulo','hexagono','flecha'].indexOf(cortForma)>=0?0:128
-        var r=p.size/2*sc, rFlange=r+(flangeW*sc), fH=flangeH*sc, fsc=p.filo*sc
-        var flangeOuter=_shapePts(cortForma,rFlange,segs)
+        var segs=cortForma==='cuadrado'?4:cortForma==='estrella'?10:cortForma==='triangulo'||cortForma==='hexagono'||cortForma==='rombo'||cortForma==='arbol'?1:64
+        var r=p.size/2*sc, fH=flangeH*sc, fsc=p.filo*sc
         var outer=_shapePts(cortForma,r,segs)
+        var inner=_offsetPoly(outer,p.wall*sc)
+        var flangeOuter=_shapePts(cortForma,r+flangeW*sc,segs)
         var tris=[]
-        _ring(tris,flangeOuter,outer,0,false)
         _wall(tris,flangeOuter,0,fH,true)
+        _wall(tris,outer,0,fH,false)
         _ring(tris,flangeOuter,outer,fH,true)
-        _ring(tris,outer,_shapePts(cortForma,Math.max(0.5*sc,r-p.wall*sc),segs),fH,false)
-        _buildCortante(tris,cortForma,p.size*sc,fsc,p.wall*sc,segs)
-        cortGL.setMeshes([cortGL.mkMesh(tris,new Float32Array([0.04,0.28,0.35]),0,0,-totH*sc/2)])
+        _ring(tris,flangeOuter,outer,0,false)
+        _wall(tris,outer,fH,fH+fsc,true)
+        _wall(tris,inner,fH,fH+fsc,false)
+        _ring(tris,outer,inner,fH+fsc,true)
+        _ring(tris,outer,inner,fH,false)
+        cortGL.setMeshes([cortGL.mkMesh(tris,new Float32Array([0.04,0.28,0.35]),0,0,-(fH+fsc)/2)])
       }
       window.cortanteGenerar=function(){
         var p=cortGetP(),tris=[]
         var flangeH=p.flangeH, flangeW=p.flangeW
-        var segs=['cuadrado'].indexOf(cortForma)>=0?4:['estrella'].indexOf(cortForma)>=0?10:['cohete','triangulo','hexagono','flecha'].indexOf(cortForma)>=0?0:128
-        var r=p.size/2, rFlange=r+flangeW
-        var flangeOuter=_shapePts(cortForma,rFlange,segs)
+        var segs=cortForma==='cuadrado'?4:cortForma==='estrella'?10:cortForma==='triangulo'||cortForma==='hexagono'||cortForma==='rombo'||cortForma==='arbol'?1:64
+        var r=p.size/2
         var outer=_shapePts(cortForma,r,segs)
-        _ring(tris,flangeOuter,outer,0,false)
+        var inner=_offsetPoly(outer,p.wall)
+        var flangeOuter=_shapePts(cortForma,r+flangeW,segs)
         _wall(tris,flangeOuter,0,flangeH,true)
+        _wall(tris,outer,0,flangeH,false)
         _ring(tris,flangeOuter,outer,flangeH,true)
-        _ring(tris,outer,_shapePts(cortForma,Math.max(0.5,r-p.wall),segs),flangeH,false)
-        _buildCortante(tris,cortForma,p.size,p.filo,p.wall,segs)
+        _ring(tris,flangeOuter,outer,0,false)
+        _wall(tris,outer,flangeH,flangeH+p.filo,true)
+        _wall(tris,inner,flangeH,flangeH+p.filo,false)
+        _ring(tris,outer,inner,flangeH+p.filo,true)
+        _ring(tris,outer,inner,flangeH,false)
         window.dlCheck('cortante',function(){
           var bytes=writeSTL(tris,'cortante.stl'); if(window.trackDescarga) trackDescarga('cortante')
           document.getElementById('cort-tris').textContent=tris.length.toLocaleString()
