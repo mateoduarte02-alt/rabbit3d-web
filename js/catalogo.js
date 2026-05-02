@@ -12,7 +12,7 @@
 
       // Ordenar solo por id en la query (evita errores si 'orden' no existe o no tiene índice)
       // El orden visual se aplica después en JS con el campo orden
-      const { data, error } = await supabase.from('productos').select('*').order('id', { ascending: false })
+      const { data, error } = await supabase.from('productos').select('*').order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
 
       if (error) {
         divProductos.innerHTML = '<p class="cargando">Error al cargar productos. Verificá las políticas de acceso en Supabase.</p>'
@@ -46,8 +46,13 @@
       if (ordenActual === 'descargas') {
         filtrados.sort((a, b) => (Number(b.descargas) || 0) - (Number(a.descargas) || 0))
       } else {
-        // 'llegada': más nuevos primero por id DESC
-        filtrados.sort((a, b) => Number(b.id) - Number(a.id))
+        // 'llegada': más nuevos primero por fecha de publicación en Cults
+        filtrados.sort((a, b) => {
+          const da = a.published_at ? new Date(a.published_at).getTime() : 0
+          const db = b.published_at ? new Date(b.published_at).getTime() : 0
+          if (db !== da) return db - da
+          return Number(b.id) - Number(a.id)
+        })
       }
 
       if (filtrados.length === 0) {
