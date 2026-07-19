@@ -12,7 +12,9 @@
           .select('tipo,nombre').like('tipo','config-maint-%')
         if (data) data.forEach(r => {
           const id = r.tipo.replace('config-maint-','')
-          window._maintTools[id] = r.url === '1' || r.nombre === '1'
+          // nombre = 'mant-<id>-1' cuando está en mant, 'mant-<id>-0' cuando no
+          // url puede ser '1'/'0' en registros nuevos
+          window._maintTools[id] = r.url === '1' || (r.nombre && r.nombre.endsWith('-1'))
         })
         _maintLoaded = true
         _aplicarOverlaysMant()

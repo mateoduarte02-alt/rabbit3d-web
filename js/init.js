@@ -692,7 +692,8 @@
           window._maintTools = {}
           if (data) data.forEach(r => {
             // Estado guardado en campo url ('1'=mant) o nombre ('1'=mant, legado)
-            window._maintTools[r.tipo.replace('config-maint-','')] = r.url === '1' || r.nombre === '1'
+            var mid = r.tipo.replace('config-maint-','')
+          window._maintTools[mid] = r.url === '1' || (r.nombre && r.nombre.endsWith('-1'))
           })
         } catch(e) {}
         _renderMantListas()
@@ -746,10 +747,11 @@
           if (delRes.error) throw new Error('Delete: ' + delRes.error.message)
 
           // 2. Insertar con nombre único para evitar unique constraint
+          // nombre = 'cfg_maint_<id>-1' o '-0' — el sufijo indica el estado
           var insRes = await supabase.from('media').insert([{
             tipo: tipo,
             url: estadoVal,
-            nombre: nombreUniq + '_' + estadoVal + '_' + Date.now()
+            nombre: nombreUniq + '-' + estadoVal + '-' + Date.now()
           }])
           if (insRes.error) throw new Error('Insert: ' + insRes.error.message)
 
