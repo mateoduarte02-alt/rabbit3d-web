@@ -648,6 +648,125 @@
     })()
 
 
+      // ── Gestor de Mantenimiento (admin) ──────────────────────────────────
+      // Lee dinámicamente las herramientas desde el DOM — se actualiza solo al agregar nuevas
+      window._getMantTools = function() {
+        var tools = []
+
+        // Laboratorio 3D: herramienta-card — extraer id sin regex
+        document.querySelectorAll('.herramienta-card[onclick]').forEach(function(card) {
+          var onc = card.getAttribute('onclick') || ''
+          var raw = ''
+          var q1 = onc.indexOf("'"), q2 = onc.indexOf("'", q1+1)
+          var q3 = onc.indexOf('"'), q4 = onc.indexOf('"', q3+1)
+          if (q1 >= 0 && q2 > q1) raw = onc.slice(q1+1, q2)
+          else if (q3 >= 0 && q4 > q3) raw = onc.slice(q3+1, q4)
+          if (!raw) return
+          var id = raw.indexOf('modal-') === 0 ? raw.slice(6) : raw
+          var titulo = card.querySelector('h3,.herramienta-card__title')
+          var label = titulo ? titulo.textContent.trim() : id
+          if (!tools.find(function(t){ return t.id === id })) tools.push({ id: id, label: label, tipo: 'lab' })
+        })
+
+        // Emprendedores: data-empr-id — lectura directa, soporta cualquier caracter
+        document.querySelectorAll('[data-empr-id]').forEach(function(card) {
+          var id = card.getAttribute('data-empr-id')
+          if (!id) return
+          var titulo = card.querySelector('h3,.empr-card__title')
+          var label = titulo ? titulo.textContent.trim() : id
+          if (!tools.find(function(t){ return t.id === id })) tools.push({ id: id, label: label, tipo: 'empr' })
+        })
+
+        return tools
+      }
+
+      // _maintTools vive en window para ser compartido con emprendedor.js
+      if (!window._maintTools) window._maintTools = {}
+
+      window.abrirGestorMantenimiento = async function() {
+        const modal = document.getElementById('modalGestorMant')
+        modal.style.display = 'flex'
+        try {
+          const { data } = await supabase.from('media')
+            .select('tipo,url,nombre').like('tipo','config-maint-%')
+          window._maintTools = {}
+          if (data) data.forEach(r => {
+            // Estado guardado en campo url ('1'=mant) o nombre ('1'=mant, legado)
+            window._maintTools[r.tipo.replace('config-maint-','')] = r.url === '1' || r.nombre === '1'
+          })
+        } catch(e) {}
+        _renderMantListas()
+      }
+
+      function _renderMantListas() {
+        var MANT_TOOLS = (window._getMantTools || function(){return []}).call()
+        ;['lab','empr'].forEach(function(tipo) {
+          var lista = document.getElementById('mantLista' + (tipo==='lab'?'Lab':'Empr'))
+          if (!lista) return
+          lista.innerHTML = ''
+          var filtrados = MANT_TOOLS.filter(function(t){ return t.tipo === tipo })
+          if (!filtrados.length) {
+            lista.innerHTML = '<p style="font-size:.7rem;color:var(--muted);padding:.3rem">No hay herramientas registradas.</p>'
+            return
+          }
+          filtrados.forEach(function(tool) {
+            var enMant = !!window._maintTools[tool.id]
+            var row = document.createElement('div')
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
+            var btn2 = document.createElement('button')
+            btn2.dataset.toolId = tool.id
+            btn2.dataset.enMant = String(enMant)
+            btn2.style.cssText = 'padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;background:' + (enMant?'rgba(245,158,11,.15)':'rgba(21,154,156,.15)') + ';color:' + (enMant?'#f59e0b':'#4ecca3')
+            btn2.textContent = enMant ? '🔧 En mantenimiento' : '✅ Activa'
+            btn2.onclick = function(){ window.toggleMantTool(this) }
+            var span = document.createElement('span')
+            span.style.cssText = 'font-size:.78rem;color:var(--text)'
+            span.textContent = tool.label
+            row.appendChild(span)
+            row.appendChild(btn2)
+            lista.appendChild(row)
+          })
+        })
+      }
+
+      window.toggleMantTool = async function(btn) {
+        var id = btn.dataset.toolId
+        var enMant = btn.dataset.enMant === 'true'
+        var nuevoEstado = !enMant
+        btn.disabled = true
+        btn.textContent = '...'
+
+        var tipo = 'config-maint-' + id
+        var nombreUniq = 'cfg_maint_' + id
+
+        // Verificar si ya existe el registro
+        var existeRes = await supabase.from('media').select('id,url').eq('tipo', tipo).maybeSingle()
+        var opErr = null
+        if (existeRes.data) {
+          // Actualizar solo el campo url
+          var upRes = await supabase.from('media').update({ url: nuevoEstado ? '1' : '0' }).eq('tipo', tipo)
+          opErr = upRes.error
+        } else {
+          // Insertar nuevo con nombre único
+          var insRes = await supabase.from('media').insert([{ tipo: tipo, url: nuevoEstado ? '1' : '0', nombre: nombreUniq }])
+          opErr = insRes.error
+        }
+
+        if (opErr) {
+          alert('Error al guardar: ' + opErr.message)
+          btn.disabled = false
+          btn.textContent = enMant ? '🔧 En mantenimiento' : '✅ Activa'
+          return
+        }
+
+        window._maintTools[id] = nuevoEstado
+        var labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+        if (labCard && window._toggleMantOverlay) window._toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+        var emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+        if (emprCard && window._toggleMantOverlay) window._toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+        _renderMantListas()
+      }
+      // ── Fin gestor de mantenimiento ──────────────────────────────────────
 
 
       // ══════════════════════════════════════════════════════════════════

@@ -190,13 +190,61 @@
         reader.readAsDataURL(file)
       }
 
-      // ── Remoción de fondo: Transformers.js + BiRefNet lite (100% local, ~170MB modelo) ──
-      // Modelo: onnx-community/BiRefNet_lite — calidad similar a remove.bg, sin API key, sin servidor
+      // ── Remoción de fondo: BiRefNet lite (local) o remove.bg API ──────────────
+      // Motor activo se lee desde Supabase: media.tipo='config-rembg-motor', url='birefnet'|'removebg'
+      // API key de remove.bg se guarda en:  media.tipo='config-rembg-apikey',  url=<key>
 
-      let _rmbgModel     = null   // modelo cargado
-      let _rmbgProcessor = null   // procesador cargado
+      let _rmbgModel     = null
+      let _rmbgProcessor = null
       let _rmbgLoading   = false
       let _rmbgLoaded    = false
+      let _rembgMotor    = 'birefnet'   // 'birefnet' | 'removebg'
+      let _removebgKey   = ''
+      let _removebgCredits = null       // null = desconocido
+
+      // Cargar configuración del motor desde Supabase
+      async function _cargarConfigMotor() {
+        try {
+          const { data } = await supabase.from('media')
+            .select('tipo,url').in('tipo',['config-rembg-motor','config-rembg-apikey','config-rembg-credits'])
+          if (!data) return
+          data.forEach(r => {
+            if (r.tipo === 'config-rembg-motor')   _rembgMotor   = r.url || 'birefnet'
+            if (r.tipo === 'config-rembg-apikey')   _removebgKey  = r.url || ''
+            if (r.tipo === 'config-rembg-credits')  _removebgCredits = parseInt(r.url) || null
+          })
+        } catch(e) {}
+      }
+      _cargarConfigMotor()
+
+      // Consultar créditos restantes de remove.bg
+      async function _consultarCreditsRemovebg(apiKey) {
+        try {
+          const res = await fetch('https://api.remove.bg/v1.0/account', {
+            headers: { 'X-Api-Key': apiKey }
+          })
+          if (!res.ok) return null
+          const data = await res.json()
+          return data.data?.attributes?.api_calls_remaining ?? null
+        } catch(e) { return null }
+      }
+
+      // Llamar a la API de remove.bg
+      async function _removeBackgroundAPI(imageBlob, apiKey) {
+        const formData = new FormData()
+        formData.append('image_file', imageBlob, 'image.png')
+        formData.append('size', 'auto')
+        const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+          method: 'POST',
+          headers: { 'X-Api-Key': apiKey },
+          body: formData
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.errors?.[0]?.title || 'Error remove.bg ' + res.status)
+        }
+        return await res.blob()  // PNG con transparencia
+      }
 
       const _TRANSFORMERS_CDNS = [
         'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.0/dist/transformers.min.js',
@@ -511,70 +559,109 @@
         const errEl  = document.getElementById('fotoError')
         const btnRec = document.getElementById('fotoBtnRecortar')
         errEl.textContent = ''
-        btnRec.textContent = '⏳ Iniciando IA...'
         btnRec.disabled = true
 
+        // Asegurarse de tener config actualizada
+        await _cargarConfigMotor()
+
         try {
-          // Cargar modelo (se descarga ~45MB la primera vez, luego queda en caché del browser)
-          const loaded = await cargarBgRemoval((msg) => { btnRec.textContent = '⏳ ' + msg })
-          if (!loaded) throw new Error('No se pudo cargar el modelo')
+          if (_rembgMotor === 'removebg') {
+            // ── Motor: remove.bg API ────────────────────────────────────────
+            if (!_removebgKey) throw new Error('No hay API key de remove.bg configurada.')
+            btnRec.textContent = '⏳ Procesando con remove.bg...'
 
-          btnRec.textContent = '⏳ Procesando imagen...'
+            // Convertir imagen a blob
+            const tc = document.createElement('canvas')
+            tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
+            tc.getContext('2d').drawImage(fotoOrigImg, 0, 0)
+            const blob = await new Promise(res => tc.toBlob(res, 'image/png'))
 
-          // Convertir fotoOrigImg a RawImage para BiRefNet lite
-          const tc = document.createElement('canvas')
-          tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
-          tc.getContext('2d', { willReadFrequently: true }).drawImage(fotoOrigImg, 0, 0)
-          const dataUrl = tc.toDataURL('image/png')
+            const resultBlob = await _removeBackgroundAPI(blob, _removebgKey)
 
-          const RawImage = window._tf?.RawImage
-          const rawImg = await RawImage.fromURL(dataUrl)
-
-          // Procesar con el modelo
-          const { pixel_values } = await _rmbgProcessor(rawImg)
-          const _biOut = await _rmbgModel({ input_image: pixel_values })
-          const _rawMask = (_biOut.output_image ?? _biOut.output)[0]
-          const _mask = _rawMask.sigmoid ? _rawMask.sigmoid() : _rawMask
-
-          btnRec.textContent = '⏳ Refinando bordes...'
-
-          // Convertir máscara a ImageData con alpha
-          const maskData = _mask.squeeze().tolist()  // valores 0-1
-          const maskH    = maskData.length
-          const maskW    = maskData[0].length
-
-          // Escalar la imagen original al tamaño de la máscara
-          const srcC = document.createElement('canvas')
-          srcC.width = maskW; srcC.height = maskH
-          const srcCtx = srcC.getContext('2d', { willReadFrequently: true })
-          srcCtx.drawImage(fotoOrigImg, 0, 0, maskW, maskH)
-          let imgData = srcCtx.getImageData(0, 0, maskW, maskH)
-          const pixels = imgData.data
-
-          // Aplicar máscara como canal alpha
-          for (let y = 0; y < maskH; y++) {
-            for (let x = 0; x < maskW; x++) {
-              const i = (y * maskW + x) * 4
-              pixels[i + 3] = Math.round(maskData[y][x] * 255)
+            // Actualizar créditos después del uso
+            const credits = await _consultarCreditsRemovebg(_removebgKey)
+            if (credits !== null) {
+              _removebgCredits = credits
+              // Guardar en Supabase para que el admin lo vea
+              supabase.from('media').upsert(
+                [{ tipo:'config-rembg-credits', url: String(credits), nombre:'rembg_credits' }],
+                { onConflict: 'tipo' }
+              ).then(() => {})
+              // Avisar al admin si quedan pocos créditos
+              if (esAdmin && credits <= 5) {
+                _mostrarAlertaCreditos(credits)
+              }
             }
+
+            // Convertir blob resultado a ImageData
+            const imgEl = new Image()
+            imgEl.src = URL.createObjectURL(resultBlob)
+            await new Promise(res => { imgEl.onload = res })
+            const rc = document.createElement('canvas')
+            rc.width = imgEl.width; rc.height = imgEl.height
+            const rctx = rc.getContext('2d', { willReadFrequently: true })
+            rctx.drawImage(imgEl, 0, 0)
+            const imgData = rctx.getImageData(0, 0, rc.width, rc.height)
+            URL.revokeObjectURL(imgEl.src)
+
+            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
+            fotoAplicarResultado(finalData)
+
+          } else {
+            // ── Motor: BiRefNet lite (local) ────────────────────────────────
+            btnRec.textContent = '⏳ Iniciando IA...'
+            const loaded = await cargarBgRemoval((msg) => { btnRec.textContent = '⏳ ' + msg })
+            if (!loaded) throw new Error('No se pudo cargar el modelo')
+
+            btnRec.textContent = '⏳ Procesando imagen...'
+            const tc = document.createElement('canvas')
+            tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
+            tc.getContext('2d', { willReadFrequently: true }).drawImage(fotoOrigImg, 0, 0)
+            const dataUrl = tc.toDataURL('image/png')
+
+            const RawImage = window._tf?.RawImage
+            const rawImg = await RawImage.fromURL(dataUrl)
+            const { pixel_values } = await _rmbgProcessor(rawImg)
+            const _biOut = await _rmbgModel({ input_image: pixel_values })
+            const _rawMask = (_biOut.output_image ?? _biOut.output)[0]
+            const _mask = _rawMask.sigmoid ? _rawMask.sigmoid() : _rawMask
+
+            btnRec.textContent = '⏳ Refinando bordes...'
+            const maskData = _mask.squeeze().tolist()
+            const maskH = maskData.length, maskW = maskData[0].length
+            const srcC = document.createElement('canvas')
+            srcC.width = maskW; srcC.height = maskH
+            const srcCtx = srcC.getContext('2d', { willReadFrequently: true })
+            srcCtx.drawImage(fotoOrigImg, 0, 0, maskW, maskH)
+            let imgData = srcCtx.getImageData(0, 0, maskW, maskH)
+            const pixels = imgData.data
+            for (let y = 0; y < maskH; y++)
+              for (let x = 0; x < maskW; x++)
+                pixels[(y * maskW + x) * 4 + 3] = Math.round(maskData[y][x] * 255)
+            imgData = fotoPostprocess(imgData, fotoOrigImg)
+            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
+            fotoAplicarResultado(finalData)
           }
 
-          // Post-procesar: eliminar fondo residual + suavizar bordes
-          imgData = fotoPostprocess(imgData, fotoOrigImg)
-
-          // Escalar de vuelta al tamaño original
-          const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
-
-          fotoAplicarResultado(finalData)
-
         } catch(err) {
-          console.warn('BiRefNet lite falló, usando fallback Canvas:', err)
-          errEl.textContent = '⚠ IA no disponible. Usá el recorte manual con la barra de tolerancia.'
+          console.warn('Remoción de fondo falló:', err)
+          errEl.textContent = '⚠ ' + (err.message || 'Error al procesar. Intentá el recorte manual.')
           document.getElementById('fotoTolRow').style.display = 'flex'
           fotoRecortarFallback()
           btnRec.textContent = '✂️ Re-recortar'
           btnRec.disabled = false
         }
+      }
+
+      // Alerta visual para el admin cuando quedan pocos créditos
+      function _mostrarAlertaCreditos(credits) {
+        const existing = document.getElementById('rembg-credits-alert')
+        if (existing) existing.remove()
+        const div = document.createElement('div')
+        div.id = 'rembg-credits-alert'
+        div.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#1a0a00;border:2px solid #f59e0b;border-radius:12px;padding:1rem 1.2rem;max-width:320px;box-shadow:0 4px 24px rgba(0,0,0,.5)'
+        div.innerHTML = '<div style="display:flex;align-items:flex-start;gap:.8rem"><span>&#9888;</span><div><p style="color:#f59e0b;font-weight:700">Cr&eacute;ditos remove.bg bajos</p><p style="color:#fde68a">Quedan <strong>' + credits + '</strong> cr&eacute;dito' + (credits === 1 ? '' : 's') + '. Consider&aacute; cambiar al motor BiRefNet.</p><button onclick="abrirConfigMotorRembg()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer">Cambiar motor</button> <button onclick="this.closest(\'#rembg-credits-alert\').remove()" style="background:none;border:none;color:#9ca3af;cursor:pointer">Cerrar</button></div></div>'
+        document.body.appendChild(div)
       }
 
       // Fallback: algoritmo Canvas por si falla la API

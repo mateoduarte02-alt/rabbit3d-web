@@ -21,6 +21,7 @@
     function desactivarAdmin() {
       esAdmin = false
       adminBar.classList.remove('activo')
+      document.getElementById('productos').classList.remove('drag-mode')
       document.getElementById('ytAdminBar').style.display = 'none'
       ;['stl','llavero','caja','maceta','marco','cortante'].forEach(t => {
         const ov = document.getElementById('hcard-edit-' + t)
@@ -345,6 +346,7 @@
       document.getElementById('productoDesc').value = p.descripcion || ''
       document.getElementById('productoPrecio').value = p.precio
       document.getElementById('productoCategoria').value = p.categoria
+      document.getElementById('productoOrden').value = p.orden ?? ''
       document.getElementById('productoImagen').value = p.imagen_url || ''
       document.getElementById('productoImagenFile').value = ''
       const preview = document.getElementById('uploadPreview')
@@ -367,13 +369,15 @@
       const precio   = parseFloat(document.getElementById('productoPrecio').value)
       const categoria= document.getElementById('productoCategoria').value
       const imagen   = document.getElementById('productoImagen').value.trim()
+      const ordenVal = document.getElementById('productoOrden').value
+      const orden    = ordenVal !== '' ? parseInt(ordenVal) : null
 
       if (!nombre || isNaN(precio)) {
         productoError.textContent = 'Nombre y precio son obligatorios.'
         return
       }
 
-      const datos = { nombre, descripcion: desc, precio, categoria, imagen_url: imagen || null }
+      const datos = { nombre, descripcion: desc, precio, categoria, imagen_url: imagen || null, orden }
       let error
       if (id) {
         ;({ error } = await supabase.from('productos').update(datos).eq('id', id))
@@ -861,7 +865,6 @@
                 illustrationImageUrl
                 downloadsCount
                 shortUrl
-                publishedAt
                 price(currency: USD) { cents }
               }
             }
@@ -903,10 +906,6 @@
         return
       }
 
-      // Invertir para insertar del más viejo al más nuevo
-      // Así los IDs de Supabase quedan en orden cronológico correcto
-      todosLosDiseños.reverse()
-
       // Importar solo los nuevos
       btn.textContent = `Importando ${todosLosDiseños.length} diseños...`
       let nuevos = 0, duplicados = 0
@@ -940,8 +939,7 @@
             cults_url: d.shortUrl || null,
             cults_id: cultsId,
             descargas: d.downloadsCount || 0,
-            es_gratis: esGratis,
-            published_at: d.publishedAt || null
+            es_gratis: esGratis
           }])
           nuevos++
           cultsIdsExistentes.add(cultsId)
@@ -956,7 +954,6 @@
                 descargas: d.downloadsCount || 0,
                 es_gratis: precio === 0,
                 cults_url: d.shortUrl || null,
-                published_at: d.publishedAt || null,
                 imagen_url: d.illustrationImageUrl || null,
                 descripcion: d.description || null,
               })
@@ -2186,3 +2183,112 @@
 
   
     
+
+
+    // ── Configuración motor remoción de fondo ────────────────────────────────
+    window.abrirConfigMotorRembg = async function() {
+      // Leer config actual
+      let motorActual = 'birefnet', apiKey = '', credits = null
+      try {
+        const { data } = await supabase.from('media')
+          .select('tipo,url').in('tipo',['config-rembg-motor','config-rembg-apikey','config-rembg-credits'])
+        if (data) data.forEach(r => {
+          if (r.tipo === 'config-rembg-motor')  motorActual = r.url || 'birefnet'
+          if (r.tipo === 'config-rembg-apikey')  apiKey      = r.url || ''
+          if (r.tipo === 'config-rembg-credits') credits     = r.url
+        })
+      } catch(e) {}
+
+      // Crear modal
+      const existing = document.getElementById('modalConfigMotorRembg')
+      if (existing) existing.remove()
+
+      const modal = document.createElement('div')
+      modal.id = 'modalConfigMotorRembg'
+      modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,8,15,.88);display:flex;align-items:center;justify-content:center;padding:1rem'
+      var isBiref = motorActual === 'birefnet'
+      var isRmbg  = motorActual === 'removebg'
+      var creditsHtml = credits !== null
+        ? '<p style="font-size:.72rem;color:' + (parseInt(credits)<=5?'#f59e0b':'#4ecca3') + ';margin:.2rem 0 0">Créditos restantes: <strong>' + credits + '</strong></p>'
+        : ''
+      var btnBirefStyle = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid ' + (isBiref ? 'var(--cyan)' : 'rgba(255,255,255,.1)') + ';background:' + (isBiref ? 'rgba(21,154,156,.15)' : 'transparent')
+      var btnRmbgStyle  = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid ' + (isRmbg ? '#f59e0b' : 'rgba(255,255,255,.1)') + ';background:' + (isRmbg ? 'rgba(245,158,11,.15)' : 'transparent')
+      var html = []
+      html.push('<div style="background:var(--bg-card,#0a2535);border:1px solid rgba(21,154,156,.4);border-radius:16px;padding:1.5rem;max-width:420px;width:100%;display:flex;flex-direction:column;gap:1rem">')
+      html.push('<div style="display:flex;justify-content:space-between;align-items:center">')
+      html.push('<h3 style="font-size:.9rem;font-weight:700;color:var(--cyan);margin:0">Motor de remoción de fondo</h3>')
+      html.push('<button id="rembg-close-btn" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&#10005;</button>')
+      html.push('</div>')
+      html.push('<div style="display:flex;flex-direction:column;gap:.5rem">')
+      html.push('<label style="font-size:.78rem;color:var(--text);font-weight:600">Motor activo</label>')
+      html.push('<div style="display:flex;gap:.5rem">')
+      html.push('<button id="rembg-btn-birefnet" style="' + btnBirefStyle + '">BiRefNet lite<br><span style="font-size:.68rem;color:var(--muted);font-weight:400">Local, sin límites, ~170MB</span></button>')
+      html.push('<button id="rembg-btn-removebg" style="' + btnRmbgStyle  + '">remove.bg API<br><span style="font-size:.68rem;color:var(--muted);font-weight:400">Nube, alta calidad, créditos</span></button>')
+      html.push('</div></div>')
+      html.push('<div style="display:flex;flex-direction:column;gap:.4rem">')
+      html.push('<label style="font-size:.78rem;color:var(--text);font-weight:600">API Key de remove.bg</label>')
+      html.push('<input id="rembg-apikey-input" type="password" placeholder="Ingresá tu API key de remove.bg" style="padding:.5rem .7rem;background:var(--bg2,#0d1117);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:var(--text);font-size:.78rem;font-family:monospace"/>')
+      html.push(creditsHtml)
+      html.push('</div>')
+      html.push('<div id="rembg-save-status" style="font-size:.72rem;color:var(--muted);min-height:1rem"></div>')
+      html.push('<div style="display:flex;gap:.5rem;justify-content:flex-end">')
+      html.push('<button id="rembg-cancel-btn" style="padding:.4rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--muted);cursor:pointer;font-size:.78rem">Cancelar</button>')
+      html.push('<button id="rembg-save-btn" style="padding:.4rem 1rem;border-radius:8px;border:none;background:var(--cyan,#159a9c);color:#fff;cursor:pointer;font-size:.78rem;font-weight:700">Guardar</button>')
+      html.push('</div></div>')
+      modal.innerHTML = html.join('')
+      modal.querySelector('#rembg-apikey-input').value = apiKey
+      modal.querySelector('#rembg-close-btn').onclick  = function(){ modal.remove() }
+      modal.querySelector('#rembg-cancel-btn').onclick = function(){ modal.remove() }
+      modal.querySelector('#rembg-save-btn').onclick   = function(){ window._rembgGuardarConfig() }
+      modal.querySelector('#rembg-btn-birefnet').onclick = function(){ window._rembgSelectMotor('birefnet') }
+      modal.querySelector('#rembg-btn-removebg').onclick = function(){ window._rembgSelectMotor('removebg') }
+      var keyInput = modal.querySelector('#rembg-apikey-input')
+      if (keyInput) keyInput.value = apiKey
+      document.body.appendChild(modal)
+      modal.addEventListener('click', e => { if(e.target===modal) modal.remove() })
+
+      let _motorSeleccionado = motorActual
+      window._rembgSelectMotor = function(motor) {
+        _motorSeleccionado = motor
+        const bb = document.getElementById('rembg-btn-birefnet')
+        const rb = document.getElementById('rembg-btn-removebg')
+        bb.style.borderColor = motor==='birefnet'?'var(--cyan)':'rgba(255,255,255,.1)'
+        bb.style.background  = motor==='birefnet'?'rgba(21,154,156,.15)':'transparent'
+        rb.style.borderColor = motor==='removebg'?'#f59e0b':'rgba(255,255,255,.1)'
+        rb.style.background  = motor==='removebg'?'rgba(245,158,11,.15)':'transparent'
+      }
+
+      window._rembgGuardarConfig = async function() {
+        const apiKeyVal = document.getElementById('rembg-apikey-input').value.trim()
+        const statusEl = document.getElementById('rembg-save-status')
+        statusEl.textContent = 'Guardando...'
+
+        const upserts = [
+          { tipo:'config-rembg-motor',  url: _motorSeleccionado, nombre:'rembg_motor' },
+          { tipo:'config-rembg-apikey', url: apiKeyVal,          nombre:'rembg_apikey' }
+        ]
+
+        let err = null
+        for (const row of upserts) {
+          const { data: ex } = await supabase.from('media').select('id').eq('tipo',row.tipo).maybeSingle()
+          if (ex) {
+            const r = await supabase.from('media').update({ url: row.url }).eq('tipo', row.tipo)
+            if (r.error) { err = r.error; break }
+          } else {
+            const r = await supabase.from('media').insert([row])
+            if (r.error) { err = r.error; break }
+          }
+        }
+
+        if (err) {
+          statusEl.style.color = '#f87171'
+          statusEl.textContent = 'Error: ' + err.message
+        } else {
+          statusEl.style.color = '#4ecca3'
+          statusEl.textContent = '✓ Guardado correctamente'
+          // Recargar config en fotoproducto
+          if (typeof _cargarConfigMotor === 'function') await _cargarConfigMotor()
+          setTimeout(() => modal.remove(), 1200)
+        }
+      }
+    }
