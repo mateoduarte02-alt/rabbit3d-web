@@ -738,33 +738,34 @@
 
         var tipo = 'config-maint-' + id
         var nombreUniq = 'cfg_maint_' + id
+        var estadoVal = nuevoEstado ? '1' : '0'
 
-        // Verificar si ya existe el registro
-        var existeRes = await supabase.from('media').select('id,url').eq('tipo', tipo).maybeSingle()
-        var opErr = null
-        if (existeRes.data) {
-          // Actualizar solo el campo url
-          var upRes = await supabase.from('media').update({ url: nuevoEstado ? '1' : '0' }).eq('tipo', tipo)
-          opErr = upRes.error
-        } else {
-          // Insertar nuevo con nombre único
-          var insRes = await supabase.from('media').insert([{ tipo: tipo, url: nuevoEstado ? '1' : '0', nombre: nombreUniq }])
-          opErr = insRes.error
-        }
+        try {
+          // 1. Borrar registro existente (si hay)
+          var delRes = await supabase.from('media').delete().eq('tipo', tipo)
+          if (delRes.error) throw new Error('Delete: ' + delRes.error.message)
 
-        if (opErr) {
-          alert('Error al guardar: ' + opErr.message)
+          // 2. Insertar con nombre único para evitar unique constraint
+          var insRes = await supabase.from('media').insert([{
+            tipo: tipo,
+            url: estadoVal,
+            nombre: nombreUniq + '_' + estadoVal + '_' + Date.now()
+          }])
+          if (insRes.error) throw new Error('Insert: ' + insRes.error.message)
+
+          // 3. Actualizar estado local y UI
+          window._maintTools[id] = nuevoEstado
+          var labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+          if (labCard && window._toggleMantOverlay) window._toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+          var emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+          if (emprCard && window._toggleMantOverlay) window._toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+          _renderMantListas()
+
+        } catch(e) {
+          alert('Error al guardar mantenimiento: ' + e.message)
           btn.disabled = false
           btn.textContent = enMant ? '🔧 En mantenimiento' : '✅ Activa'
-          return
         }
-
-        window._maintTools[id] = nuevoEstado
-        var labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
-        if (labCard && window._toggleMantOverlay) window._toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
-        var emprCard = document.querySelector('[data-empr-id="'+id+'"]')
-        if (emprCard && window._toggleMantOverlay) window._toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
-        _renderMantListas()
       }
       // ── Fin gestor de mantenimiento ──────────────────────────────────────
 

@@ -2190,14 +2190,16 @@
       // Leer config actual
       let motorActual = 'birefnet', apiKey = '', credits = null
       try {
-        const { data } = await supabase.from('media')
-          .select('tipo,url').in('tipo',['config-rembg-motor','config-rembg-apikey','config-rembg-credits'])
-        if (data) data.forEach(r => {
-          if (r.tipo === 'config-rembg-motor')  motorActual = r.url || 'birefnet'
-          if (r.tipo === 'config-rembg-apikey')  apiKey      = r.url || ''
-          if (r.tipo === 'config-rembg-credits') credits     = r.url
+        const res = await supabase.from('media')
+          .select('tipo,url')
+          .or('tipo.eq.config-rembg-motor,tipo.eq.config-rembg-apikey,tipo.eq.config-rembg-credits')
+        if (res.error) throw res.error
+        if (res.data) res.data.forEach(r => {
+          if (r.tipo === 'config-rembg-motor')   motorActual = r.url || 'birefnet'
+          if (r.tipo === 'config-rembg-apikey')   apiKey      = r.url || ''
+          if (r.tipo === 'config-rembg-credits')  credits     = r.url
         })
-      } catch(e) {}
+      } catch(e) { console.warn('config motor rembg:', e.message) }
 
       // Crear modal
       const existing = document.getElementById('modalConfigMotorRembg')
