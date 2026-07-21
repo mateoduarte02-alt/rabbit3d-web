@@ -190,60 +190,83 @@
         reader.readAsDataURL(file)
       }
 
-      // ── Remoción de fondo: BiRefNet lite (local) o remove.bg API ──────────────
-      // Motor activo se lee desde Supabase: media.tipo='config-rembg-motor', url='birefnet'|'removebg'
-      // API key de remove.bg se guarda en:  media.tipo='config-rembg-apikey',  url=<key>
+      // ── Remoción de fondo: BiRefNet lite (local) + remove.bg API (múltiples keys) ──
+      let _rmbgModel      = null
+      let _rmbgProcessor  = null
+      let _rmbgLoading    = false
+      let _rmbgLoaded     = false
+      let _rembgMotor     = 'birefnet'  // 'birefnet' | 'removebg'
+      let _rembgKeys      = []          // [{id, tipo, key, credits, nombre}]
+      let _rembgKeyActivo = 0
 
-      let _rmbgModel     = null
-      let _rmbgProcessor = null
-      let _rmbgLoading   = false
-      let _rmbgLoaded    = false
-      let _rembgMotor    = 'birefnet'   // 'birefnet' | 'removebg'
-      let _removebgKey   = ''
-      let _removebgCredits = null       // null = desconocido
-
-      // Cargar configuración del motor desde Supabase
-      async function _cargarConfigMotor() {
+      window._cargarConfigMotor = async function() {
         try {
-          const { data } = await supabase.from('media')
-            .select('tipo,url').in('tipo',['config-rembg-motor','config-rembg-apikey','config-rembg-credits'])
+          const { data } = await supabase.from('media').select('id,tipo,url,nombre')
+            .or('tipo.eq.config-rembg-motor,tipo.like.config-rembg-key-%')
           if (!data) return
+          _rembgKeys = []
           data.forEach(r => {
-            if (r.tipo === 'config-rembg-motor')   _rembgMotor   = r.url || 'birefnet'
-            if (r.tipo === 'config-rembg-apikey')   _removebgKey  = r.url || ''
-            if (r.tipo === 'config-rembg-credits')  _removebgCredits = parseInt(r.url) || null
+            if (r.tipo === 'config-rembg-motor') _rembgMotor = r.url || 'birefnet'
+            if (r.tipo.startsWith('config-rembg-key-')) {
+              const parts = (r.url || '').split('|')
+              _rembgKeys.push({ id: r.id, tipo: r.tipo, key: parts[0]||'', credits: parts[1]!==undefined?parseInt(parts[1]):null, nombre: r.nombre||'' })
+            }
           })
+          _rembgKeys.sort((a,b) => a.tipo.localeCompare(b.tipo))
+          _rembgKeyActivo = Math.max(0, _rembgKeys.findIndex(k => k.credits===null||k.credits>0))
         } catch(e) {}
       }
-      _cargarConfigMotor()
+      window._cargarConfigMotor()
 
-      // Consultar créditos restantes de remove.bg
-      async function _consultarCreditsRemovebg(apiKey) {
-        try {
-          const res = await fetch('https://api.remove.bg/v1.0/account', {
-            headers: { 'X-Api-Key': apiKey }
-          })
-          if (!res.ok) return null
-          const data = await res.json()
-          return data.data?.attributes?.api_calls_remaining ?? null
-        } catch(e) { return null }
+      async function _callRemoveBg(blob) {
+        if (!_rembgKeys.length) throw new Error('No hay API keys configuradas. Configurá una en Motor Fondo.')
+        let lastErr = null
+        for (let attempt = 0; attempt < _rembgKeys.length; attempt++) {
+          const idx = (_rembgKeyActivo + attempt) % _rembgKeys.length
+          const k = _rembgKeys[idx]
+          if (!k.key) continue
+          try {
+            const fd = new FormData()
+            fd.append('image_file', blob, 'image.png')
+            fd.append('size', 'auto')
+            const res = await fetch('https://api.remove.bg/v1.0/removebg', { method:'POST', headers:{'X-Api-Key':k.key}, body:fd })
+            if (res.status === 402) {
+              k.credits = 0
+              await supabase.from('media').update({ url: k.key+'|0' }).eq('id', k.id).catch(()=>{})
+              lastErr = new Error('Sin créditos en key "'+(k.nombre||'#'+(idx+1))+'"')
+              continue
+            }
+            if (!res.ok) { const e=await res.json().catch(()=>{}); throw new Error((e?.errors?.[0]?.title)||'Error '+res.status) }
+            const rem = res.headers.get('X-Credits-Remaining')
+            if (rem !== null) {
+              k.credits = parseInt(rem)
+              _rembgKeyActivo = idx
+              await supabase.from('media').update({ url: k.key+'|'+k.credits }).eq('id', k.id).catch(()=>{})
+              if (esAdmin && k.credits <= 5) _alertaCreditosBajos(k, idx)
+            }
+            return await res.blob()
+          } catch(e) { lastErr = e }
+        }
+        throw lastErr || new Error('Todas las API keys fallaron')
       }
 
-      // Llamar a la API de remove.bg
-      async function _removeBackgroundAPI(imageBlob, apiKey) {
-        const formData = new FormData()
-        formData.append('image_file', imageBlob, 'image.png')
-        formData.append('size', 'auto')
-        const res = await fetch('https://api.remove.bg/v1.0/removebg', {
-          method: 'POST',
-          headers: { 'X-Api-Key': apiKey },
-          body: formData
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.errors?.[0]?.title || 'Error remove.bg ' + res.status)
-        }
-        return await res.blob()  // PNG con transparencia
+      function _alertaCreditosBajos(k, idx) {
+        const ex = document.getElementById('rembg-alert-low'); if (ex) ex.remove()
+        const div = document.createElement('div')
+        div.id = 'rembg-alert-low'
+        div.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#1a0a00;border:2px solid #f59e0b;border-radius:12px;padding:1rem 1.2rem;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.5)'
+        const h = []
+        h.push('<div style="display:flex;align-items:flex-start;gap:.6rem"><span style="font-size:1.2rem">&#9888;</span><div>')
+        h.push('<p style="font-size:.8rem;font-weight:700;color:#f59e0b;margin:0 0 .2rem">Key "'+(k.nombre||'#'+(idx+1))+'" con '+k.credits+' crédito'+(k.credits===1?'':'s')+' restante'+(k.credits===1?'':'s')+'</p>')
+        h.push('<p style="font-size:.72rem;color:#fde68a;margin:0 0 .5rem">Configurá otra key antes de que se agote.</p>')
+        h.push('<button id="rembg-alert-cfg" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:.25rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;margin-right:.4rem">Configurar</button>')
+        h.push('<button id="rembg-alert-close" style="background:none;border:none;color:#9ca3af;font-size:.7rem;cursor:pointer">Cerrar</button>')
+        h.push('</div></div>')
+        div.innerHTML = h.join('')
+        div.querySelector('#rembg-alert-cfg').onclick = () => { div.remove(); window.abrirConfigMotorRembg && window.abrirConfigMotorRembg() }
+        div.querySelector('#rembg-alert-close').onclick = () => div.remove()
+        document.body.appendChild(div)
+        setTimeout(() => { if(div.parentNode) div.remove() }, 15000)
       }
 
       const _TRANSFORMERS_CDNS = [
@@ -561,107 +584,63 @@
         errEl.textContent = ''
         btnRec.disabled = true
 
-        // Asegurarse de tener config actualizada
-        await _cargarConfigMotor()
+        await window._cargarConfigMotor()
 
         try {
           if (_rembgMotor === 'removebg') {
-            // ── Motor: remove.bg API ────────────────────────────────────────
-            if (!_removebgKey) throw new Error('No hay API key de remove.bg configurada.')
+            // ── remove.bg API ─────────────────────────────────────────
             btnRec.textContent = '⏳ Procesando con remove.bg...'
-
-            // Convertir imagen a blob
             const tc = document.createElement('canvas')
             tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
             tc.getContext('2d').drawImage(fotoOrigImg, 0, 0)
             const blob = await new Promise(res => tc.toBlob(res, 'image/png'))
-
-            const resultBlob = await _removeBackgroundAPI(blob, _removebgKey)
-
-            // Actualizar créditos después del uso
-            const credits = await _consultarCreditsRemovebg(_removebgKey)
-            if (credits !== null) {
-              _removebgCredits = credits
-              // Guardar en Supabase para que el admin lo vea
-              supabase.from('media').upsert(
-                [{ tipo:'config-rembg-credits', url: String(credits), nombre:'rembg_credits' }],
-                { onConflict: 'tipo' }
-              ).then(() => {})
-              // Avisar al admin si quedan pocos créditos
-              if (esAdmin && credits <= 5) {
-                _mostrarAlertaCreditos(credits)
-              }
-            }
-
-            // Convertir blob resultado a ImageData
+            const resultBlob = await _callRemoveBg(blob)
             const imgEl = new Image()
             imgEl.src = URL.createObjectURL(resultBlob)
             await new Promise(res => { imgEl.onload = res })
             const rc = document.createElement('canvas')
             rc.width = imgEl.width; rc.height = imgEl.height
-            const rctx = rc.getContext('2d', { willReadFrequently: true })
-            rctx.drawImage(imgEl, 0, 0)
-            const imgData = rctx.getImageData(0, 0, rc.width, rc.height)
+            rc.getContext('2d', { willReadFrequently: true }).drawImage(imgEl, 0, 0)
+            const imgData = rc.getContext('2d').getImageData(0, 0, rc.width, rc.height)
             URL.revokeObjectURL(imgEl.src)
-
-            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
-            fotoAplicarResultado(finalData)
+            fotoAplicarResultado(fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height))
 
           } else {
-            // ── Motor: BiRefNet lite (local) ────────────────────────────────
+            // ── BiRefNet lite (local) ──────────────────────────────────
             btnRec.textContent = '⏳ Iniciando IA...'
             const loaded = await cargarBgRemoval((msg) => { btnRec.textContent = '⏳ ' + msg })
             if (!loaded) throw new Error('No se pudo cargar el modelo')
-
             btnRec.textContent = '⏳ Procesando imagen...'
             const tc = document.createElement('canvas')
             tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
             tc.getContext('2d', { willReadFrequently: true }).drawImage(fotoOrigImg, 0, 0)
-            const dataUrl = tc.toDataURL('image/png')
-
             const RawImage = window._tf?.RawImage
-            const rawImg = await RawImage.fromURL(dataUrl)
+            const rawImg = await RawImage.fromURL(tc.toDataURL('image/png'))
             const { pixel_values } = await _rmbgProcessor(rawImg)
             const _biOut = await _rmbgModel({ input_image: pixel_values })
             const _rawMask = (_biOut.output_image ?? _biOut.output)[0]
             const _mask = _rawMask.sigmoid ? _rawMask.sigmoid() : _rawMask
-
             btnRec.textContent = '⏳ Refinando bordes...'
             const maskData = _mask.squeeze().tolist()
             const maskH = maskData.length, maskW = maskData[0].length
             const srcC = document.createElement('canvas')
             srcC.width = maskW; srcC.height = maskH
-            const srcCtx = srcC.getContext('2d', { willReadFrequently: true })
-            srcCtx.drawImage(fotoOrigImg, 0, 0, maskW, maskH)
-            let imgData = srcCtx.getImageData(0, 0, maskW, maskH)
+            srcC.getContext('2d', { willReadFrequently: true }).drawImage(fotoOrigImg, 0, 0, maskW, maskH)
+            let imgData = srcC.getContext('2d').getImageData(0, 0, maskW, maskH)
             const pixels = imgData.data
-            for (let y = 0; y < maskH; y++)
-              for (let x = 0; x < maskW; x++)
-                pixels[(y * maskW + x) * 4 + 3] = Math.round(maskData[y][x] * 255)
+            for (let y=0;y<maskH;y++) for (let x=0;x<maskW;x++) pixels[(y*maskW+x)*4+3] = Math.round(maskData[y][x]*255)
             imgData = fotoPostprocess(imgData, fotoOrigImg)
-            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
-            fotoAplicarResultado(finalData)
+            fotoAplicarResultado(fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height))
           }
 
         } catch(err) {
           console.warn('Remoción de fondo falló:', err)
-          errEl.textContent = '⚠ ' + (err.message || 'Error al procesar. Intentá el recorte manual.')
+          errEl.textContent = '⚠ ' + (err.message || 'Error. Usá el recorte manual.')
           document.getElementById('fotoTolRow').style.display = 'flex'
           fotoRecortarFallback()
           btnRec.textContent = '✂️ Re-recortar'
           btnRec.disabled = false
         }
-      }
-
-      // Alerta visual para el admin cuando quedan pocos créditos
-      function _mostrarAlertaCreditos(credits) {
-        const existing = document.getElementById('rembg-credits-alert')
-        if (existing) existing.remove()
-        const div = document.createElement('div')
-        div.id = 'rembg-credits-alert'
-        div.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#1a0a00;border:2px solid #f59e0b;border-radius:12px;padding:1rem 1.2rem;max-width:320px;box-shadow:0 4px 24px rgba(0,0,0,.5)'
-        div.innerHTML = '<div style="display:flex;align-items:flex-start;gap:.8rem"><span>&#9888;</span><div><p style="color:#f59e0b;font-weight:700">Cr&eacute;ditos remove.bg bajos</p><p style="color:#fde68a">Quedan <strong>' + credits + '</strong> cr&eacute;dito' + (credits === 1 ? '' : 's') + '. Consider&aacute; cambiar al motor BiRefNet.</p><button onclick="abrirConfigMotorRembg()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:.3rem .8rem;font-weight:700;cursor:pointer">Cambiar motor</button> <button onclick="this.closest(\'#rembg-credits-alert\').remove()" style="background:none;border:none;color:#9ca3af;cursor:pointer">Cerrar</button></div></div>'
-        document.body.appendChild(div)
       }
 
       // Fallback: algoritmo Canvas por si falla la API

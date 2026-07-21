@@ -4638,14 +4638,18 @@
         try {
           await supabase.from('media').delete().eq('tipo','config-maint-'+id)
           if (nuevoEstado) {
-            await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'', nombre:'1'}])
+            await supabase.from('media').insert([{
+              tipo:'config-maint-'+id,
+              url:'1',
+              nombre:'cfg_maint_'+id+'-1-'+Date.now()
+            }])
           }
-          _maintTools[id] = nuevoEstado
-          // Actualizar overlay en la card
+          if (!window._maintTools) window._maintTools = {}
+          window._maintTools[id] = nuevoEstado
           const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
-          if (labCard) _toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+          if (labCard && window._toggleMantOverlay) window._toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
           const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
-          if (emprCard) _toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+          if (emprCard && window._toggleMantOverlay) window._toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
           _renderMantListas()
         } catch(e) {
           btn.disabled = false

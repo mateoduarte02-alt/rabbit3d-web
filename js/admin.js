@@ -2180,3 +2180,121 @@
       },{passive:false})
       document.addEventListener('touchend',onEnd)
     })()
+
+  
+    
+
+    // ── Configuración motor remoción de fondo + múltiples API keys ────────
+    window.abrirConfigMotorRembg = async function() {
+      if (typeof window._cargarConfigMotor === 'function') await window._cargarConfigMotor()
+      const existing = document.getElementById('modalConfigMotorRembg')
+      if (existing) existing.remove()
+      const modal = document.createElement('div')
+      modal.id = 'modalConfigMotorRembg'
+      modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,8,15,.88);display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto'
+
+      function renderModal() {
+        const isBiref = window._rembgMotor === 'birefnet'
+        const keys    = window._rembgKeys || []
+        const activo  = window._rembgKeyActivo || 0
+        const bBS = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid '+(isBiref?'var(--cyan)':'rgba(255,255,255,.1)')+';background:'+(isBiref?'rgba(21,154,156,.15)':'transparent')
+        const bRS = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid '+(!isBiref?'#f59e0b':'rgba(255,255,255,.1)')+';background:'+(!isBiref?'rgba(245,158,11,.15)':'transparent')
+        const h = []
+        h.push('<div style="background:var(--bg-card,#0a2535);border:1px solid rgba(21,154,156,.4);border-radius:16px;padding:1.5rem;max-width:460px;width:100%;display:flex;flex-direction:column;gap:1rem">')
+        h.push('<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:.9rem;font-weight:700;color:var(--cyan);margin:0">Motor de remoción de fondo</h3><button id="rmbg-x" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&#10005;</button></div>')
+        h.push('<div style="display:flex;flex-direction:column;gap:.4rem"><label style="font-size:.78rem;color:var(--text);font-weight:600">Motor activo</label><div style="display:flex;gap:.5rem">')
+        h.push('<button id="rmbg-biref" style="'+bBS+'">BiRefNet lite<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Local, sin límites, ~170MB</span></button>')
+        h.push('<button id="rmbg-api" style="'+bRS+'">remove.bg API<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Alta calidad, usa créditos</span></button>')
+        h.push('</div></div>')
+        h.push('<div style="display:flex;flex-direction:column;gap:.4rem">')
+        h.push('<div style="display:flex;justify-content:space-between;align-items:center"><label style="font-size:.78rem;color:var(--text);font-weight:600">API Keys de remove.bg</label><button id="rmbg-addkey" style="background:rgba(21,154,156,.15);border:1px solid rgba(21,154,156,.3);color:var(--cyan);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;cursor:pointer">+ Agregar key</button></div>')
+        h.push('<div id="rmbg-keys-list">')
+        if (!keys.length) {
+          h.push('<p style="font-size:.72rem;color:var(--muted);padding:.3rem">No hay keys configuradas.</p>')
+        } else {
+          keys.forEach((k,i) => {
+            const isActiva = i === activo
+            const credColor = k.credits===null?'var(--muted)':k.credits<=5?'#f59e0b':'#4ecca3'
+            const credTxt = k.credits===null?'Créditos desconocidos':k.credits+' crédito'+(k.credits===1?'':'s')
+            h.push('<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:rgba(255,255,255,.04);border:1px solid '+(isActiva?'var(--cyan)':'rgba(255,255,255,.07)')+';border-radius:8px;margin-bottom:.3rem">')
+            h.push('<span style="font-size:.7rem;font-weight:700;color:'+(isActiva?'var(--cyan)':'var(--muted)')+';min-width:1.2rem">'+(isActiva?'▶':'·')+'</span>')
+            h.push('<div style="flex:1;min-width:0"><p style="font-size:.75rem;color:var(--text);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Key #'+(i+1)+' — '+(k.nombre||'sin nombre')+'</p><p style="font-size:.68rem;color:'+credColor+';margin:0">'+credTxt+'</p></div>')
+            h.push('<button data-setactivo="'+i+'" style="background:rgba(21,154,156,.12);border:1px solid rgba(21,154,156,.25);color:var(--cyan);border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">Usar</button>')
+            h.push('<button data-del="'+i+'" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">&#128465;</button>')
+            h.push('</div>')
+          })
+        }
+        h.push('</div></div>')
+        h.push('<div id="rmbg-addkey-form" style="display:none;flex-direction:column;gap:.4rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.7rem">')
+        h.push('<label style="font-size:.75rem;color:var(--text);font-weight:600">Nueva API Key</label>')
+        h.push('<input id="rmbg-newkey-name" placeholder="Nombre (ej: Cuenta principal)" style="padding:.4rem .6rem;background:var(--bg2,#0d1117);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text);font-size:.75rem"/>')
+        h.push('<input id="rmbg-newkey-val" type="password" placeholder="API Key de remove.bg" style="padding:.4rem .6rem;background:var(--bg2,#0d1117);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text);font-size:.75rem;font-family:monospace"/>')
+        h.push('<div style="display:flex;gap:.4rem"><button id="rmbg-newkey-save" style="flex:1;background:var(--cyan,#159a9c);color:#fff;border:none;border-radius:6px;padding:.35rem;font-size:.75rem;font-weight:700;cursor:pointer">Guardar key</button><button id="rmbg-newkey-cancel" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--muted);border-radius:6px;padding:.35rem .7rem;font-size:.75rem;cursor:pointer">Cancelar</button></div>')
+        h.push('</div>')
+        h.push('<div id="rmbg-status" style="font-size:.72rem;color:var(--muted);min-height:.8rem"></div>')
+        h.push('<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="rmbg-cancel" style="padding:.4rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--muted);cursor:pointer;font-size:.78rem">Cerrar</button><button id="rmbg-save-motor" style="padding:.4rem 1rem;border-radius:8px;border:none;background:var(--cyan,#159a9c);color:#fff;cursor:pointer;font-size:.78rem;font-weight:700">Guardar motor</button></div>')
+        h.push('</div>')
+        modal.innerHTML = h.join('')
+        bindEvents()
+      }
+
+      function bindEvents() {
+        modal.querySelector('#rmbg-x').onclick     = () => modal.remove()
+        modal.querySelector('#rmbg-cancel').onclick = () => modal.remove()
+        modal.addEventListener('click', e => { if(e.target===modal) modal.remove() })
+        modal.querySelector('#rmbg-biref').onclick = () => { window._rembgMotor='birefnet'; renderModal() }
+        modal.querySelector('#rmbg-api').onclick   = () => { window._rembgMotor='removebg'; renderModal() }
+
+        modal.querySelector('#rmbg-save-motor').onclick = async () => {
+          const st = modal.querySelector('#rmbg-status')
+          st.style.color='var(--muted)'; st.textContent='Guardando...'
+          const ex = await supabase.from('media').select('id').eq('tipo','config-rembg-motor').maybeSingle()
+          const res = ex.data
+            ? await supabase.from('media').update({url:window._rembgMotor}).eq('tipo','config-rembg-motor')
+            : await supabase.from('media').insert([{tipo:'config-rembg-motor',url:window._rembgMotor,nombre:'rembg_motor'}])
+          if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message }
+          else { st.style.color='#4ecca3'; st.textContent='✓ Motor guardado' }
+        }
+
+        modal.querySelector('#rmbg-addkey').onclick = () => {
+          modal.querySelector('#rmbg-addkey-form').style.display='flex'
+          modal.querySelector('#rmbg-addkey').style.display='none'
+        }
+        modal.querySelector('#rmbg-newkey-cancel').onclick = () => {
+          modal.querySelector('#rmbg-addkey-form').style.display='none'
+          modal.querySelector('#rmbg-addkey').style.display=''
+        }
+        modal.querySelector('#rmbg-newkey-save').onclick = async () => {
+          const nombre = modal.querySelector('#rmbg-newkey-name').value.trim()
+          const key    = modal.querySelector('#rmbg-newkey-val').value.trim()
+          if (!key) { alert('Ingresá una API key'); return }
+          const st = modal.querySelector('#rmbg-status')
+          st.style.color='var(--muted)'; st.textContent='Guardando...'
+          const tipo = 'config-rembg-key-' + Date.now()
+          const res = await supabase.from('media').insert([{tipo, url:key, nombre:nombre||('Key #'+(( window._rembgKeys||[]).length+1))}])
+          if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message; return }
+          st.style.color='#4ecca3'; st.textContent='✓ Key guardada'
+          await window._cargarConfigMotor()
+          renderModal()
+        }
+
+        modal.querySelectorAll('[data-setactivo]').forEach(btn => {
+          btn.onclick = () => { window._rembgKeyActivo = parseInt(btn.dataset.setactivo); renderModal() }
+        })
+        modal.querySelectorAll('[data-del]').forEach(btn => {
+          btn.onclick = async () => {
+            if (!confirm('¿Borrar esta key?')) return
+            const k = (window._rembgKeys||[])[parseInt(btn.dataset.del)]
+            const st = modal.querySelector('#rmbg-status')
+            st.style.color='var(--muted)'; st.textContent='Borrando...'
+            const res = await supabase.from('media').delete().eq('id', k.id)
+            if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message; return }
+            await window._cargarConfigMotor()
+            renderModal()
+          }
+        })
+      }
+
+      renderModal()
+      document.body.appendChild(modal)
+    }

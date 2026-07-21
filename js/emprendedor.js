@@ -2,7 +2,7 @@
 // emprendedor.js — La Madriguera
 // ═══════════════════════════════════════════════════
 
-    if (!window._maintTools) window._maintTools = {}  // compartido con init.js
+    let _maintTools = {}       // { toolId: true/false }
     let _maintLoaded = false
 
     async function cargarMantenimiento() {
@@ -12,20 +12,18 @@
           .select('tipo,nombre').like('tipo','config-maint-%')
         if (data) data.forEach(r => {
           const id = r.tipo.replace('config-maint-','')
-          // nombre = 'mant-<id>-1' cuando está en mant, 'mant-<id>-0' cuando no
-          // url puede ser '1'/'0' en registros nuevos
-          window._maintTools[id] = r.url === '1' || (r.nombre && r.nombre.endsWith('-1'))
+          _maintTools[id] = r.nombre === '1'
         })
         _maintLoaded = true
         _aplicarOverlaysMant()
       } catch(e) {}
     }
 
-    function _estaEnMant(toolId) { return !!(window._maintTools && window._maintTools[toolId]) }
+    function _estaEnMant(toolId) { return !!_maintTools[toolId] }
 
     // Muestra overlay visual en la card si está en mantenimiento
     function _aplicarOverlaysMant() {
-      Object.entries(window._maintTools || {}).forEach(function(entry) { var id=entry[0], enMant=entry[1];
+      Object.entries(_maintTools).forEach(function(entry) { var id=entry[0], enMant=entry[1];
         // Cards de laboratorio
         const labCard = document.querySelector('.herramienta-card[onclick*="modal-' + id + '"]')
         if (labCard) _toggleMantOverlay(labCard, id, enMant, 'lab')
@@ -35,7 +33,7 @@
       })
     }
 
-    window._toggleMantOverlay = function(card, id, enMant, tipo) {
+    function _toggleMantOverlay(card, id, enMant, tipo) {
       const overlayId = 'mant-overlay-' + id
       let overlay = document.getElementById(overlayId)
       if (enMant && !esAdmin) {
@@ -226,3 +224,103 @@
       document.getElementById('tarjLogoScaleVal').textContent = this.value + '%'
       if (typeof tarjGenerarTodas === 'function') tarjGenerarTodas_throttled()
     })
+
+      // ── Gestor de Mantenimiento (admin) ──────────────────────────────────
+      // Lee dinámicamente las herramientas desde el DOM — se actualiza solo al agregar nuevas
+      window._getMantTools = function() {
+        var tools = []
+
+        // Laboratorio 3D: herramienta-card — extraer id sin regex
+        document.querySelectorAll('.herramienta-card[onclick]').forEach(function(card) {
+          var onc = card.getAttribute('onclick') || ''
+          var raw = ''
+          var q1 = onc.indexOf("'"), q2 = onc.indexOf("'", q1+1)
+          var q3 = onc.indexOf('"'), q4 = onc.indexOf('"', q3+1)
+          if (q1 >= 0 && q2 > q1) raw = onc.slice(q1+1, q2)
+          else if (q3 >= 0 && q4 > q3) raw = onc.slice(q3+1, q4)
+          if (!raw) return
+          var id = raw.indexOf('modal-') === 0 ? raw.slice(6) : raw
+          var titulo = card.querySelector('h3,.herramienta-card__title')
+          var label = titulo ? titulo.textContent.trim() : id
+          if (!tools.find(function(t){ return t.id === id })) tools.push({ id: id, label: label, tipo: 'lab' })
+        })
+
+        // Emprendedores: data-empr-id — lectura directa, soporta cualquier caracter
+        document.querySelectorAll('[data-empr-id]').forEach(function(card) {
+          var id = card.getAttribute('data-empr-id')
+          if (!id) return
+          var titulo = card.querySelector('h3,.empr-card__title')
+          var label = titulo ? titulo.textContent.trim() : id
+          if (!tools.find(function(t){ return t.id === id })) tools.push({ id: id, label: label, tipo: 'empr' })
+        })
+
+        return tools
+      }
+
+      window.abrirGestorMantenimiento = async function() {
+        const modal = document.getElementById('modalGestorMant')
+        modal.style.display = 'flex'
+        // Recargar estado fresco desde Supabase
+        try {
+          const { data } = await supabase.from('media')
+            .select('tipo,nombre').like('tipo','config-maint-%')
+          _maintTools = {}
+          if (data) data.forEach(r => {
+            _maintTools[r.tipo.replace('config-maint-','')] = r.nombre === '1'
+          })
+        } catch(e) {}
+        _renderMantListas()
+      }
+
+      function _renderMantListas() {
+        var MANT_TOOLS = (window._getMantTools || function(){return []}).call()
+        ;['lab','empr'].forEach(tipo => {
+          const lista = document.getElementById('mantLista' + (tipo==='lab'?'Lab':'Empr'))
+          if (!lista) return
+          lista.innerHTML = ''
+          if (!MANT_TOOLS.filter(t => t.tipo === tipo).length) {
+            lista.innerHTML = '<p style="font-size:.7rem;color:var(--muted);padding:.3rem">No hay herramientas registradas.</p>'
+            return
+          }
+          MANT_TOOLS.filter(t => t.tipo === tipo).forEach(tool => {
+            const enMant = !!_maintTools[tool.id]
+            const row = document.createElement('div')
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
+            row.innerHTML = `
+              <span style="font-size:.78rem;color:var(--text)">${tool.label}</span>
+              <button data-tool-id="${tool.id}" data-en-mant="${enMant}"
+                style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
+                  background:${enMant ? 'rgba(245,158,11,.15)' : 'rgba(21,154,156,.15)'};
+                  color:${enMant ? '#f59e0b' : '#4ecca3'}"
+                onclick="toggleMantTool(this)">
+                ${enMant ? '🔧 En mantenimiento' : '✅ Activa'}
+              </button>`
+            lista.appendChild(row)
+          })
+        })
+      }
+
+      window.toggleMantTool = async function(btn) {
+        const id = btn.dataset.toolId
+        const enMant = btn.dataset.enMant === 'true'
+        const nuevoEstado = !enMant
+        btn.disabled = true
+        btn.textContent = '...'
+        try {
+          await supabase.from('media').delete().eq('tipo','config-maint-'+id)
+          if (nuevoEstado) {
+            await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'', nombre:'1'}])
+          }
+          _maintTools[id] = nuevoEstado
+          // Actualizar overlay en la card
+          const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+          if (labCard) _toggleMantOverlay(labCard, id, nuevoEstado, 'lab')
+          const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+          if (emprCard) _toggleMantOverlay(emprCard, id, nuevoEstado, 'empr')
+          _renderMantListas()
+        } catch(e) {
+          btn.disabled = false
+          alert('Error al guardar: ' + (e.message || e))
+        }
+      }
+      // ── Fin gestor de mantenimiento ──────────────────────────────────────
