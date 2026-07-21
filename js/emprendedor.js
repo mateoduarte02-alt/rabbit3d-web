@@ -10,7 +10,7 @@
       if (_maintLoaded) return
       try {
         const { data } = await supabase.from('media')
-          .select('tipo,nombre').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
+          .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
         if (data) data.forEach(r => {
           if (r.tipo.startsWith('config-maint-')) {
             const id = r.tipo.replace('config-maint-','')
@@ -297,7 +297,7 @@
         // Recargar estado fresco desde Supabase
         try {
           const { data } = await supabase.from('media')
-            .select('tipo,nombre').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
+            .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
           _maintTools = {}
           _hiddenTools = {}
           if (data) data.forEach(r => {
