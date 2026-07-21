@@ -2,6 +2,27 @@
 // core.js — La Madriguera
 // ═══════════════════════════════════════════════════
 
+    // Fallback de miniaturas YouTube: maxres → hq → mq → sd
+    // (usado desde admin.js al armar el carrusel de YouTube)
+    window.ytThumbFallback = function(img) {
+      var ytid = img.dataset.ytid
+      if (!ytid) {
+        var m = (img.src || '').match(/\/vi\/([a-zA-Z0-9_-]{11})\//)
+        ytid = m ? m[1] : null
+      }
+      if (!ytid) { img.onerror = null; return }
+
+      var attempt = parseInt(img.dataset.attempt || '0')
+      var qualities = ['mqdefault', 'sddefault', 'default', '0']
+      if (attempt < qualities.length) {
+        img.dataset.attempt = String(attempt + 1)
+        img.onerror = function() { window.ytThumbFallback(this) }
+        img.src = 'https://img.youtube.com/vi/' + ytid + '/' + qualities[attempt] + '.jpg'
+      } else {
+        img.onerror = null
+        img.style.display = 'none'
+      }
+    }
 
     // supabase — var para no colisionar con window.supabase del CDN
     var createClient = window.supabase.createClient
