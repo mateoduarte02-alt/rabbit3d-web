@@ -628,37 +628,6 @@
         }
       }
 
-    // Cuadros 2D — bloqueado para usuarios, solo admin puede activar
-    window.abrirHerramientaStl = function() {
-      if (esAdmin) {
-        // Admin: abre directo sin bloqueo
-        window.abrirHerramienta('modal-stl')
-      }
-      // No-admin: el overlay visual es suficiente, no hace nada más
-    }
-
-    // Mostrar botón "Activar" del WIP solo para admin
-    ;(function() {
-      const adminBtn = document.getElementById('hcardWipAdminBtn')
-      if (adminBtn && esAdmin) {
-        adminBtn.style.display = 'inline-flex'
-        adminBtn.addEventListener('click', function(e) {
-          e.stopPropagation()
-          // Quitar overlay y habilitar la card
-          const overlay = document.getElementById('hcardWipOverlay')
-          const card    = document.getElementById('hcard-stl')
-          if (overlay) overlay.remove()
-          if (card) {
-            card.classList.remove('herramienta-card--wip')
-            card.onclick = function() { window.abrirHerramienta('modal-stl') }
-          }
-          const badge = card && card.querySelector('.herramienta-card__badge--wip')
-          if (badge) { badge.textContent = '🧪 Beta'; badge.classList.remove('herramienta-card__badge--wip') }
-          const btn = card && card.querySelector('.herramienta-card__btn--wip')
-          if (btn) { btn.textContent = 'Abrir herramienta →'; btn.disabled = false; btn.classList.remove('herramienta-card__btn--wip') }
-        })
-      }
-    })()
     }
     window.cerrarHerramienta = function(id) {
       document.getElementById(id).classList.remove('activo')

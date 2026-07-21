@@ -2,17 +2,23 @@
 // emprendedor.js — La Madriguera
 // ═══════════════════════════════════════════════════
 
-    let _maintTools = {}       // { toolId: true/false }
+    let _maintTools = {}       // { toolId: true/false } — bloqueada con overlay "En mantenimiento"
+    let _hiddenTools = {}      // { toolId: true/false } — oculta directamente del catálogo de herramientas
     let _maintLoaded = false
 
     async function cargarMantenimiento() {
       if (_maintLoaded) return
       try {
         const { data } = await supabase.from('media')
-          .select('tipo,nombre').like('tipo','config-maint-%')
+          .select('tipo,nombre').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
         if (data) data.forEach(r => {
-          const id = r.tipo.replace('config-maint-','')
-          _maintTools[id] = r.nombre === '1'
+          if (r.tipo.startsWith('config-maint-')) {
+            const id = r.tipo.replace('config-maint-','')
+            _maintTools[id] = (r.nombre === '1' || r.url === '1')  // 'nombre'=1 es el formato viejo, 'url'=1 el nuevo
+          } else if (r.tipo.startsWith('config-hidden-')) {
+            const id = r.tipo.replace('config-hidden-','')
+            _hiddenTools[id] = (r.nombre === '1' || r.url === '1')
+          }
         })
         _maintLoaded = true
         _aplicarOverlaysMant()
@@ -20,17 +26,45 @@
     }
 
     function _estaEnMant(toolId) { return !!_maintTools[toolId] }
+    function _estaOculta(toolId) { return !!_hiddenTools[toolId] }
 
-    // Muestra overlay visual en la card si está en mantenimiento
+    // Muestra overlay visual en la card si está en mantenimiento, y la oculta si corresponde
     function _aplicarOverlaysMant() {
-      Object.entries(_maintTools).forEach(function(entry) { var id=entry[0], enMant=entry[1];
+      const ids = new Set([...Object.keys(_maintTools), ...Object.keys(_hiddenTools)])
+      ids.forEach(function(id) {
+        const enMant = !!_maintTools[id]
+        const oculta = !!_hiddenTools[id]
         // Cards de laboratorio
         const labCard = document.querySelector('.herramienta-card[onclick*="modal-' + id + '"]')
-        if (labCard) _toggleMantOverlay(labCard, id, enMant, 'lab')
+        if (labCard) { _toggleMantOverlay(labCard, id, enMant, 'lab'); _toggleHiddenCard(labCard, id, oculta) }
         // Cards de emprendedores
         const emprCard = document.querySelector('[data-empr-id="' + id + '"]')
-        if (emprCard) _toggleMantOverlay(emprCard, id, enMant, 'empr')
+        if (emprCard) { _toggleMantOverlay(emprCard, id, enMant, 'empr'); _toggleHiddenCard(emprCard, id, oculta) }
       })
+    }
+
+    // Oculta la card por completo para usuarios normales; para el admin la deja
+    // visible pero marcada, así puede reactivarla desde el gestor
+    function _toggleHiddenCard(card, id, oculta) {
+      if (oculta && !esAdmin) {
+        card.style.display = 'none'
+        return
+      }
+      card.style.display = ''
+      const badgeId = 'hidden-admin-badge-' + id
+      let badge = document.getElementById(badgeId)
+      if (oculta && esAdmin) {
+        if (!badge) {
+          badge = document.createElement('div')
+          badge.id = badgeId
+          badge.style.cssText = 'position:absolute;top:8px;left:8px;z-index:11;background:rgba(0,0,0,.75);border:1px solid #f87171;color:#f87171;font-size:.62rem;font-weight:700;padding:.2rem .5rem;border-radius:6px;pointer-events:none'
+          badge.textContent = '🙈 Oculta para usuarios'
+          if (getComputedStyle(card).position === 'static') card.style.position = 'relative'
+          card.appendChild(badge)
+        }
+      } else if (badge) {
+        badge.remove()
+      }
     }
 
     function _toggleMantOverlay(card, id, enMant, tipo) {
@@ -50,11 +84,11 @@
       }
     }
 
-    // Interceptar abrirHerramienta y abrirEmprendedor para bloquear si está en mant
+    // Interceptar abrirHerramienta y abrirEmprendedor para bloquear si está en mant u oculta
     const _origAbrirH_mant = window.abrirHerramienta
     window.abrirHerramienta = function(id) {
       const toolId = id.replace('modal-','')
-      if (_estaEnMant(toolId) && !esAdmin) {
+      if ((_estaEnMant(toolId) || _estaOculta(toolId)) && !esAdmin) {
         // Mostrar toast de mantenimiento
         _mostrarToastMant()
         return
@@ -65,7 +99,7 @@
     const _origAbrirE_mant = window.abrirEmprendedor
     window.abrirEmprendedor = function(id) {
       const toolId = id.replace('modal-','')
-      if (_estaEnMant(toolId) && !esAdmin) {
+      if ((_estaEnMant(toolId) || _estaOculta(toolId)) && !esAdmin) {
         _mostrarToastMant()
         return
       }
@@ -263,10 +297,12 @@
         // Recargar estado fresco desde Supabase
         try {
           const { data } = await supabase.from('media')
-            .select('tipo,nombre').like('tipo','config-maint-%')
+            .select('tipo,nombre').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
           _maintTools = {}
+          _hiddenTools = {}
           if (data) data.forEach(r => {
-            _maintTools[r.tipo.replace('config-maint-','')] = r.nombre === '1'
+            if (r.tipo.startsWith('config-maint-')) _maintTools[r.tipo.replace('config-maint-','')] = (r.nombre === '1' || r.url === '1')
+            else if (r.tipo.startsWith('config-hidden-')) _hiddenTools[r.tipo.replace('config-hidden-','')] = (r.nombre === '1' || r.url === '1')
           })
         } catch(e) {}
         _renderMantListas()
@@ -284,17 +320,27 @@
           }
           MANT_TOOLS.filter(t => t.tipo === tipo).forEach(tool => {
             const enMant = !!_maintTools[tool.id]
+            const oculta = !!_hiddenTools[tool.id]
             const row = document.createElement('div')
-            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:.4rem;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
             row.innerHTML = `
               <span style="font-size:.78rem;color:var(--text)">${tool.label}</span>
-              <button data-tool-id="${tool.id}" data-en-mant="${enMant}"
-                style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
-                  background:${enMant ? 'rgba(245,158,11,.15)' : 'rgba(21,154,156,.15)'};
-                  color:${enMant ? '#f59e0b' : '#4ecca3'}"
-                onclick="toggleMantTool(this)">
-                ${enMant ? '🔧 En mantenimiento' : '✅ Activa'}
-              </button>`
+              <div style="display:flex;gap:.4rem">
+                <button data-tool-id="${tool.id}" data-oculta="${oculta}"
+                  style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
+                    background:${oculta ? 'rgba(239,68,68,.15)' : 'rgba(255,255,255,.06)'};
+                    color:${oculta ? '#f87171' : 'var(--muted)'}"
+                  onclick="toggleOcultaTool(this)">
+                  ${oculta ? '🙈 Oculta' : '👁 Visible'}
+                </button>
+                <button data-tool-id="${tool.id}" data-en-mant="${enMant}"
+                  style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
+                    background:${enMant ? 'rgba(245,158,11,.15)' : 'rgba(21,154,156,.15)'};
+                    color:${enMant ? '#f59e0b' : '#4ecca3'}"
+                  onclick="toggleMantTool(this)">
+                  ${enMant ? '🔧 En mantenimiento' : '✅ Activa'}
+                </button>
+              </div>`
             lista.appendChild(row)
           })
         })
@@ -309,7 +355,7 @@
         try {
           await supabase.from('media').delete().eq('tipo','config-maint-'+id)
           if (nuevoEstado) {
-            await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'', nombre:'1'}])
+            await supabase.from('media').insert([{tipo:'config-maint-'+id, url:'1', nombre:'config-maint-'+id}])
           }
           _maintTools[id] = nuevoEstado
           // Actualizar overlay en la card
@@ -323,4 +369,29 @@
           alert('Error al guardar: ' + (e.message || e))
         }
       }
+
+      window.toggleOcultaTool = async function(btn) {
+        const id = btn.dataset.toolId
+        const oculta = btn.dataset.oculta === 'true'
+        const nuevoEstado = !oculta
+        btn.disabled = true
+        btn.textContent = '...'
+        try {
+          await supabase.from('media').delete().eq('tipo','config-hidden-'+id)
+          if (nuevoEstado) {
+            await supabase.from('media').insert([{tipo:'config-hidden-'+id, url:'1', nombre:'config-hidden-'+id}])
+          }
+          _hiddenTools[id] = nuevoEstado
+          // Actualizar la card (ocultarla/mostrarla según corresponda)
+          const labCard = document.querySelector('.herramienta-card[onclick*="modal-'+id+'"]')
+          if (labCard) _toggleHiddenCard(labCard, id, nuevoEstado)
+          const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
+          if (emprCard) _toggleHiddenCard(emprCard, id, nuevoEstado)
+          _renderMantListas()
+        } catch(e) {
+          btn.disabled = false
+          alert('Error al guardar: ' + (e.message || e))
+        }
+      }
       // ── Fin gestor de mantenimiento ──────────────────────────────────────
+

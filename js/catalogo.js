@@ -75,7 +75,7 @@
           <div class="card__img-wrap">
             ${p.imagen_url
               ? (p.imagen_url.match(/\.mp4(\?|$)/i)
-                ? `<video src="${p.imagen_url}" class="card__img card__video lazy-video" muted loop playsinline preload="none" onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video>`
+                ? `<video src="${p.imagen_url}" class="card__img card__video lazy-video" muted loop playsinline preload="none"></video>`
                 : `<img src="${p.imagen_url}" alt="${p.nombre}" class="card__img"/>`)
               : `<div class="card__placeholder">3D</div>`}
             <span class="card__num">${String(i+1).padStart(2,'0')}</span>
@@ -108,6 +108,9 @@
           </div>
         </article>`
       }).join('')
+
+      // Activar autoplay-en-viewport de los videos de portada recién insertados
+      if (window._observarVideosLazy) setTimeout(window._observarVideosLazy, 50)
 
       // Botón "Ver más" — muestra 100 más en cada click
       if (hayMas) {
@@ -146,7 +149,7 @@
                   <div class="card__img-wrap">
                 ${p.imagen_url
                   ? (p.imagen_url.match(/\.mp4(\?|$)/i)
-                    ? `<video src="${p.imagen_url}" class="card__img card__video lazy-video" muted loop playsinline preload="none" onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video>`
+                    ? `<video src="${p.imagen_url}" class="card__img card__video lazy-video" muted loop playsinline preload="none"></video>`
                     : `<img src="${p.imagen_url}" alt="${p.nombre}" class="card__img"/>`)
                   : `<div class="card__placeholder">3D</div>`}
                 <span class="card__num">${String(i+1).padStart(2,'0')}</span>
@@ -179,6 +182,8 @@
               </div>`
             divProductos.appendChild(art)
           })
+          // Activar autoplay-en-viewport de los videos recién agregados
+          if (window._observarVideosLazy) setTimeout(window._observarVideosLazy, 50)
           // Nuevo botón si aún quedan más
           if (hayMasAun) {
             divProductos.insertAdjacentHTML('beforeend', `

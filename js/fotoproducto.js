@@ -162,14 +162,17 @@
           const img = new Image()
           img.onload = () => {
             fotoOrigImg = img
-            // Actualizar mensaje — ahora esperando API
+            // Actualizar mensaje — ahora esperando API (texto dinámico según el motor activo)
+            const usaApi = window._rembgMotor === 'removebg'
+            const motorTitulo = usaApi ? 'remove.bg API procesando tu foto...' : 'BiRefNet lite procesando tu foto...'
+            const motorSub    = usaApi ? 'Alta calidad · en la nube · usa créditos' : 'Alta calidad · 100% local · Sin límites'
             inner.innerHTML = `
               <div style="display:flex;flex-direction:column;align-items:center;gap:.75rem;padding:1.5rem;pointer-events:none">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#159A9C" stroke-width="2" width="44" height="44" style="animation:potencSpin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                 <div style="text-align:center">
                   <p style="margin:0;font-size:1rem;font-weight:700;color:var(--cyan);font-family:var(--font-head);letter-spacing:.05em">REMOVIENDO FONDO</p>
-                  <p style="margin:.3rem 0 0;font-size:.78rem;color:var(--text)">BiRefNet lite procesando tu foto...</p>
-                  <p style="margin:.2rem 0 0;font-size:.7rem;color:var(--muted)">Alta calidad · 100% local · Sin límites</p>
+                  <p style="margin:.3rem 0 0;font-size:.78rem;color:var(--text)">${motorTitulo}</p>
+                  <p style="margin:.2rem 0 0;font-size:.7rem;color:var(--muted)">${motorSub}</p>
                 </div>
               </div>`
             document.getElementById('fotoPaso2').style.display = 'block'
@@ -195,35 +198,67 @@
       let _rmbgProcessor  = null
       let _rmbgLoading    = false
       let _rmbgLoaded     = false
-      let _rembgMotor     = 'birefnet'  // 'birefnet' | 'removebg'
-      let _rembgKeys      = []          // [{id, tipo, key, credits, nombre}]
-      let _rembgKeyActivo = 0
+      window._rembgMotor     = 'birefnet'  // 'birefnet' | 'removebg'
+      window._rembgKeys      = []          // [{id, tipo, key, credits, usos, nombre}]
+      window._rembgKeyActivo = 0
+      window._rembgUsosBiref = 0           // usos totales del motor local (BiRefNet)
 
       window._cargarConfigMotor = async function() {
         try {
           const { data } = await supabase.from('media').select('id,tipo,url,nombre')
-            .or('tipo.eq.config-rembg-motor,tipo.like.config-rembg-key-%')
+            .or('tipo.eq.config-rembg-motor,tipo.eq.config-rembg-usos-biref,tipo.like.config-rembg-key-%')
           if (!data) return
-          _rembgKeys = []
+          window._rembgKeys = []
           data.forEach(r => {
-            if (r.tipo === 'config-rembg-motor') _rembgMotor = r.url || 'birefnet'
+            if (r.tipo === 'config-rembg-motor') window._rembgMotor = r.url || 'birefnet'
+            if (r.tipo === 'config-rembg-usos-biref') window._rembgUsosBiref = parseInt(r.url) || 0
             if (r.tipo.startsWith('config-rembg-key-')) {
               const parts = (r.url || '').split('|')
-              _rembgKeys.push({ id: r.id, tipo: r.tipo, key: parts[0]||'', credits: parts[1]!==undefined?parseInt(parts[1]):null, nombre: r.nombre||'' })
+              // 'nombre' guarda un sufijo oculto '__<timestamp>' para cumplir el UNIQUE
+              // de la tabla 'media' — acá se separa y se muestra solo la parte legible
+              const nombreLegible = (r.nombre || '').split('__')[0]
+              window._rembgKeys.push({
+                id: r.id, tipo: r.tipo, key: parts[0]||'',
+                credits: parts[1]!==undefined && parts[1]!=='' ? parseInt(parts[1]) : null,
+                usos: parts[2]!==undefined && parts[2]!=='' ? parseInt(parts[2]) : 0,
+                nombre: nombreLegible
+              })
             }
           })
-          _rembgKeys.sort((a,b) => a.tipo.localeCompare(b.tipo))
-          _rembgKeyActivo = Math.max(0, _rembgKeys.findIndex(k => k.credits===null||k.credits>0))
+          window._rembgKeys.sort((a,b) => a.tipo.localeCompare(b.tipo))
+          window._rembgKeyActivo = Math.max(0, window._rembgKeys.findIndex(k => k.credits===null||k.credits>0))
         } catch(e) {}
       }
       window._cargarConfigMotor()
 
+      function _actualizarMotorLabel() {
+        const lbl = document.getElementById('fotoMotorLabel')
+        if (!lbl) return
+        if (window._rembgMotor === 'removebg') {
+          lbl.innerHTML = '🤖 Motor: <strong style="color:var(--cyan)">remove.bg API</strong> — IA de alta calidad, en la nube'
+        } else {
+          lbl.innerHTML = '🤖 Motor: <strong style="color:var(--cyan)">RMBG-1.4 (BiRefNet lite)</strong> — IA de alta calidad, 100% local'
+        }
+      }
+
+      function _incrementarUsoBiref() {
+        window._rembgUsosBiref = (window._rembgUsosBiref || 0) + 1
+        // Fire-and-forget: no bloquea la UI, y si falla no rompe el flujo de la foto
+        ;(async () => {
+          try {
+            const ex = await supabase.from('media').select('id').eq('tipo','config-rembg-usos-biref').maybeSingle()
+            if (ex.data) await supabase.from('media').update({ url: String(window._rembgUsosBiref) }).eq('id', ex.data.id)
+            else await supabase.from('media').insert([{ tipo:'config-rembg-usos-biref', url:String(window._rembgUsosBiref), nombre:'rembg_usos_biref' }])
+          } catch(e) {}
+        })()
+      }
+
       async function _callRemoveBg(blob) {
-        if (!_rembgKeys.length) throw new Error('No hay API keys configuradas. Configurá una en Motor Fondo.')
+        if (!window._rembgKeys.length) throw new Error('No hay API keys configuradas. Configurá una en Motor Fondo.')
         let lastErr = null
-        for (let attempt = 0; attempt < _rembgKeys.length; attempt++) {
-          const idx = (_rembgKeyActivo + attempt) % _rembgKeys.length
-          const k = _rembgKeys[idx]
+        for (let attempt = 0; attempt < window._rembgKeys.length; attempt++) {
+          const idx = (window._rembgKeyActivo + attempt) % window._rembgKeys.length
+          const k = window._rembgKeys[idx]
           if (!k.key) continue
           try {
             const fd = new FormData()
@@ -232,18 +267,17 @@
             const res = await fetch('https://api.remove.bg/v1.0/removebg', { method:'POST', headers:{'X-Api-Key':k.key}, body:fd })
             if (res.status === 402) {
               k.credits = 0
-              await supabase.from('media').update({ url: k.key+'|0' }).eq('id', k.id).catch(()=>{})
+              try { await supabase.from('media').update({ url: k.key+'|0|'+(k.usos||0) }).eq('id', k.id) } catch(e) {}
               lastErr = new Error('Sin créditos en key "'+(k.nombre||'#'+(idx+1))+'"')
               continue
             }
             if (!res.ok) { const e=await res.json().catch(()=>{}); throw new Error((e?.errors?.[0]?.title)||'Error '+res.status) }
             const rem = res.headers.get('X-Credits-Remaining')
-            if (rem !== null) {
-              k.credits = parseInt(rem)
-              _rembgKeyActivo = idx
-              await supabase.from('media').update({ url: k.key+'|'+k.credits }).eq('id', k.id).catch(()=>{})
-              if (esAdmin && k.credits <= 5) _alertaCreditosBajos(k, idx)
-            }
+            if (rem !== null) k.credits = parseInt(rem)
+            k.usos = (k.usos || 0) + 1
+            window._rembgKeyActivo = idx
+            try { await supabase.from('media').update({ url: k.key+'|'+(k.credits ?? '')+'|'+k.usos }).eq('id', k.id) } catch(e) {}
+            if (esAdmin && k.credits !== null && k.credits <= 5) _alertaCreditosBajos(k, idx)
             return await res.blob()
           } catch(e) { lastErr = e }
         }
@@ -585,9 +619,10 @@
         btnRec.disabled = true
 
         await window._cargarConfigMotor()
+        _actualizarMotorLabel()
 
         try {
-          if (_rembgMotor === 'removebg') {
+          if (window._rembgMotor === 'removebg') {
             // ── remove.bg API ─────────────────────────────────────────
             btnRec.textContent = '⏳ Procesando con remove.bg...'
             const tc = document.createElement('canvas')
@@ -631,6 +666,7 @@
             for (let y=0;y<maskH;y++) for (let x=0;x<maskW;x++) pixels[(y*maskW+x)*4+3] = Math.round(maskData[y][x]*255)
             imgData = fotoPostprocess(imgData, fotoOrigImg)
             fotoAplicarResultado(fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height))
+            _incrementarUsoBiref()
           }
 
         } catch(err) {

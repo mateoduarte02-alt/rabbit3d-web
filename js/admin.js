@@ -1693,55 +1693,27 @@
     }
 
 
-    // ── Lazy-play de videos: pausar los que salen del viewport ─────────
+    // ── Autoplay de videos de portada: reproducir mientras están en pantalla ─
+    // (se llama a window._observarVideosLazy() desde catalogo.js después de
+    // cada render/paginación, así también agarra las cards nuevas)
     if ('IntersectionObserver' in window) {
       const _vidObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           const v = entry.target
-          if (!entry.isIntersecting) {
+          if (entry.isIntersecting) {
+            v.play().catch(() => {})   // catch por si el navegador bloquea el autoplay
+          } else {
             v.pause()
             v.currentTime = 0
           }
         })
       }, { threshold: 0.1 })
-      // Observar todos los videos del catálogo (también los nuevos)
-      const _observeVideos = () => {
+      window._observarVideosLazy = () => {
         document.querySelectorAll('.lazy-video').forEach(v => {
           if (!v.dataset.observed) { _vidObserver.observe(v); v.dataset.observed = '1' }
         })
       }
-      // Ejecutar después de cada render de catálogo
-      const _origRenderCards = window.renderCards
-      if (typeof _origRenderCards === 'function') {
-        window.renderCards = function(...args) { _origRenderCards(...args); setTimeout(_observeVideos, 200) }
-      }
-      setTimeout(_observeVideos, 2000)
-    }
-
-
-    // ── Lazy-play de videos: pausar los que salen del viewport ─────────
-    if ('IntersectionObserver' in window) {
-      const _vidObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          const v = entry.target
-          if (!entry.isIntersecting) {
-            v.pause()
-            v.currentTime = 0
-          }
-        })
-      }, { threshold: 0.1 })
-      // Observar todos los videos del catálogo (también los nuevos)
-      const _observeVideos = () => {
-        document.querySelectorAll('.lazy-video').forEach(v => {
-          if (!v.dataset.observed) { _vidObserver.observe(v); v.dataset.observed = '1' }
-        })
-      }
-      // Ejecutar después de cada render de catálogo
-      const _origRenderCards = window.renderCards
-      if (typeof _origRenderCards === 'function') {
-        window.renderCards = function(...args) { _origRenderCards(...args); setTimeout(_observeVideos, 200) }
-      }
-      setTimeout(_observeVideos, 2000)
+      setTimeout(window._observarVideosLazy, 1500)
     }
 
 
@@ -2194,14 +2166,34 @@
       modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,8,15,.88);display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto'
 
       function renderModal() {
-        const isBiref = window._rembgMotor === 'birefnet'
-        const keys    = window._rembgKeys || []
-        const activo  = window._rembgKeyActivo || 0
+        const isBiref   = window._rembgMotor === 'birefnet'
+        const keys      = window._rembgKeys || []
+        const activo    = window._rembgKeyActivo || 0
+        const usosBiref = window._rembgUsosBiref || 0
+        const keyActiva = keys[activo] || null
+        const usosTotalApi = keys.reduce((acc,k) => acc + (k.usos||0), 0)
         const bBS = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid '+(isBiref?'var(--cyan)':'rgba(255,255,255,.1)')+';background:'+(isBiref?'rgba(21,154,156,.15)':'transparent')
         const bRS = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid '+(!isBiref?'#f59e0b':'rgba(255,255,255,.1)')+';background:'+(!isBiref?'rgba(245,158,11,.15)':'transparent')
         const h = []
         h.push('<div style="background:var(--bg-card,#0a2535);border:1px solid rgba(21,154,156,.4);border-radius:16px;padding:1.5rem;max-width:460px;width:100%;display:flex;flex-direction:column;gap:1rem">')
         h.push('<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:.9rem;font-weight:700;color:var(--cyan);margin:0">Motor de remoción de fondo</h3><button id="rmbg-x" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&#10005;</button></div>')
+
+        // ── Panel resumen: qué se está usando ahora mismo ──────────────
+        h.push('<div style="display:flex;flex-direction:column;gap:.3rem;background:rgba(21,154,156,.08);border:1px solid rgba(21,154,156,.25);border-radius:10px;padding:.7rem .8rem">')
+        h.push('<p style="font-size:.68rem;color:var(--muted);margin:0;text-transform:uppercase;letter-spacing:.04em;font-weight:700">En uso ahora</p>')
+        if (isBiref) {
+          h.push('<p style="font-size:.85rem;color:var(--text);margin:0;font-weight:700">🖥️ BiRefNet lite <span style="font-weight:400;color:var(--muted)">(local)</span></p>')
+          h.push('<p style="font-size:.72rem;color:var(--muted);margin:0">'+usosBiref.toLocaleString()+' uso'+(usosBiref===1?'':'s')+' totales</p>')
+        } else if (keyActiva) {
+          const credColorR = keyActiva.credits===null?'var(--muted)':keyActiva.credits<=5?'#f59e0b':'#4ecca3'
+          h.push('<p style="font-size:.85rem;color:var(--text);margin:0;font-weight:700">☁️ remove.bg API <span style="font-weight:400;color:var(--muted)">— '+(keyActiva.nombre||'Key #'+(activo+1))+'</span></p>')
+          h.push('<p style="font-size:.72rem;margin:0"><span style="color:'+credColorR+'">'+(keyActiva.credits===null?'créditos desconocidos':keyActiva.credits+' crédito'+(keyActiva.credits===1?'':'s')+' restantes')+'</span> · <span style="color:var(--muted)">'+(keyActiva.usos||0)+' uso'+((keyActiva.usos||0)===1?'':'s')+' con esta key</span></p>')
+          if (keys.length > 1) h.push('<p style="font-size:.68rem;color:var(--muted);margin:0">'+usosTotalApi.toLocaleString()+' usos totales entre las '+keys.length+' keys</p>')
+        } else {
+          h.push('<p style="font-size:.8rem;color:#f59e0b;margin:0">⚠ remove.bg seleccionado pero sin keys configuradas</p>')
+        }
+        h.push('</div>')
+
         h.push('<div style="display:flex;flex-direction:column;gap:.4rem"><label style="font-size:.78rem;color:var(--text);font-weight:600">Motor activo</label><div style="display:flex;gap:.5rem">')
         h.push('<button id="rmbg-biref" style="'+bBS+'">BiRefNet lite<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Local, sin límites, ~170MB</span></button>')
         h.push('<button id="rmbg-api" style="'+bRS+'">remove.bg API<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Alta calidad, usa créditos</span></button>')
@@ -2218,7 +2210,7 @@
             const credTxt = k.credits===null?'Créditos desconocidos':k.credits+' crédito'+(k.credits===1?'':'s')
             h.push('<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:rgba(255,255,255,.04);border:1px solid '+(isActiva?'var(--cyan)':'rgba(255,255,255,.07)')+';border-radius:8px;margin-bottom:.3rem">')
             h.push('<span style="font-size:.7rem;font-weight:700;color:'+(isActiva?'var(--cyan)':'var(--muted)')+';min-width:1.2rem">'+(isActiva?'▶':'·')+'</span>')
-            h.push('<div style="flex:1;min-width:0"><p style="font-size:.75rem;color:var(--text);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Key #'+(i+1)+' — '+(k.nombre||'sin nombre')+'</p><p style="font-size:.68rem;color:'+credColor+';margin:0">'+credTxt+'</p></div>')
+            h.push('<div style="flex:1;min-width:0"><p style="font-size:.75rem;color:var(--text);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Key #'+(i+1)+' — '+(k.nombre||'sin nombre')+'</p><p style="font-size:.68rem;color:'+credColor+';margin:0">'+credTxt+' · '+(k.usos||0)+' uso'+((k.usos||0)===1?'':'s')+'</p></div>')
             h.push('<button data-setactivo="'+i+'" style="background:rgba(21,154,156,.12);border:1px solid rgba(21,154,156,.25);color:var(--cyan);border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">Usar</button>')
             h.push('<button data-del="'+i+'" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">&#128465;</button>')
             h.push('</div>')
@@ -2271,7 +2263,12 @@
           const st = modal.querySelector('#rmbg-status')
           st.style.color='var(--muted)'; st.textContent='Guardando...'
           const tipo = 'config-rembg-key-' + Date.now()
-          const res = await supabase.from('media').insert([{tipo, url:key, nombre:nombre||('Key #'+(( window._rembgKeys||[]).length+1))}])
+          // nombre tiene constraint UNIQUE en toda la tabla 'media' — se le agrega
+          // un sufijo oculto con timestamp para evitar choques (ej: "Cuenta Principal"
+          // repetido en otra key, en otro tipo de config, etc.). Se separa al mostrarlo.
+          const nombreBase   = nombre || ('Key #'+((window._rembgKeys||[]).length+1))
+          const nombreUnico  = nombreBase + '__' + Date.now()
+          const res = await supabase.from('media').insert([{tipo, url:key, nombre:nombreUnico}])
           if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message; return }
           st.style.color='#4ecca3'; st.textContent='✓ Key guardada'
           await window._cargarConfigMotor()
