@@ -7961,16 +7961,18 @@
         reader.readAsDataURL(file)
       }
 
-      // ── Remoción de fondo: RMBG-1.4 local + remove.bg API (múltiples keys) ──
+      // ── Remoción de fondo: Transformers.js + RMBG-1.4 (100% local, ~45MB modelo) ──
+      // Modelo: briaai/RMBG-1.4 — calidad similar a remove.bg, sin API key, sin servidor
+
       let _rmbgModel     = null
       let _rmbgProcessor = null
       let _rmbgLoading   = false
       let _rmbgLoaded    = false
 
-      // Config de motor — se carga desde Supabase al iniciar
-      let _rembgMotor    = 'birefnet'   // 'birefnet' | 'removebg'
-      let _rembgKeys     = []           // [{id, url, nombre, credits}] — múltiples keys
-      let _rembgKeyActivo = 0           // índice de la key activa
+      // ── Multi-motor: BiRefNet local + remove.bg API ───────────────────────
+      let _rembgMotor     = 'birefnet'
+      let _rembgKeys      = []
+      let _rembgKeyActivo = 0
 
       async function _cargarConfigMotor() {
         try {
@@ -7981,29 +7983,19 @@
           data.forEach(r => {
             if (r.tipo === 'config-rembg-motor') _rembgMotor = r.url || 'birefnet'
             if (r.tipo.startsWith('config-rembg-key-')) {
-              // formato: url = 'API_KEY|CREDITS' o solo 'API_KEY'
               const parts = (r.url || '').split('|')
-              _rembgKeys.push({
-                id: r.id,
-                tipo: r.tipo,
-                key: parts[0] || '',
-                credits: parts[1] !== undefined ? parseInt(parts[1]) : null,
-                nombre: r.nombre || ''
-              })
+              _rembgKeys.push({ id: r.id, tipo: r.tipo, key: parts[0]||'', credits: parts[1]!==undefined ? parseInt(parts[1]) : null, nombre: r.nombre||'' })
             }
           })
-          // Ordenar por tipo para consistencia
           _rembgKeys.sort((a,b) => a.tipo.localeCompare(b.tipo))
-          // Seleccionar key activa: la primera con créditos > 0 o desconocidos
-          _rembgKeyActivo = _rembgKeys.findIndex(k => k.credits === null || k.credits > 0)
-          if (_rembgKeyActivo < 0) _rembgKeyActivo = 0
+          const idx = _rembgKeys.findIndex(k => k.credits===null || k.credits>0)
+          _rembgKeyActivo = idx >= 0 ? idx : 0
         } catch(e) {}
       }
       _cargarConfigMotor()
 
-      // Llamar a remove.bg con la key activa, con fallback a la siguiente si falla
       async function _callRemoveBg(blob) {
-        if (_rembgKeys.length === 0) throw new Error('No hay API keys configuradas')
+        if (!_rembgKeys.length) throw new Error('No hay API keys configuradas. Usá "Motor fondo" para agregar una.')
         let lastErr = null
         for (let attempt = 0; attempt < _rembgKeys.length; attempt++) {
           const idx = (_rembgKeyActivo + attempt) % _rembgKeys.length
@@ -8014,62 +8006,45 @@
             fd.append('image_file', blob, 'image.png')
             fd.append('size', 'auto')
             const res = await fetch('https://api.remove.bg/v1.0/removebg', {
-              method: 'POST',
-              headers: { 'X-Api-Key': k.key },
-              body: fd
+              method: 'POST', headers: { 'X-Api-Key': k.key }, body: fd
             })
             if (res.status === 402) {
-              // Sin créditos — actualizar y probar siguiente
-              await _actualizarCredits(idx, 0)
-              lastErr = new Error('Sin créditos en key ' + (idx+1))
+              k.credits = 0
+              supabase.from('media').update({ url: k.key+'|0' }).eq('id', k.id).then(()=>{})
+              lastErr = new Error('Sin créditos en key "'+(k.nombre||'#'+(idx+1))+'"')
               continue
             }
             if (!res.ok) {
               const e = await res.json().catch(()=>({}))
-              throw new Error(e.errors?.[0]?.title || 'Error ' + res.status)
+              throw new Error((e?.errors?.[0]?.title) || 'Error '+res.status)
             }
-            // Actualizar créditos desde header
             const rem = res.headers.get('X-Credits-Remaining')
             if (rem !== null) {
-              const credits = parseInt(rem)
-              await _actualizarCredits(idx, credits)
+              k.credits = parseInt(rem)
               _rembgKeyActivo = idx
-              // Avisar al admin si quedan pocos créditos
-              if (esAdmin && credits <= 5) _alertaCreditosBajos(k, idx, credits)
+              supabase.from('media').update({ url: k.key+'|'+k.credits }).eq('id', k.id).then(()=>{})
+              if (esAdmin && k.credits <= 5) _alertaCreditosBajos(k, idx)
             }
             return await res.blob()
-          } catch(e) {
-            lastErr = e
-          }
+          } catch(e) { lastErr = e }
         }
-        throw lastErr || new Error('Todas las keys fallaron')
+        throw lastErr || new Error('Todas las API keys fallaron')
       }
 
-      async function _actualizarCredits(idx, credits) {
-        const k = _rembgKeys[idx]
-        if (!k) return
-        k.credits = credits
-        // Guardar en Supabase: url = 'KEY|CREDITS'
-        try {
-          await supabase.from('media').update({ url: k.key + '|' + credits }).eq('id', k.id)
-        } catch(e) {}
-      }
-
-      function _alertaCreditosBajos(k, idx, credits) {
-        const ex = document.getElementById('rembg-alert-low')
-        if (ex) ex.remove()
+      function _alertaCreditosBajos(k, idx) {
+        const ex = document.getElementById('rembg-alert-low'); if (ex) ex.remove()
         const div = document.createElement('div')
         div.id = 'rembg-alert-low'
         div.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#1a0a00;border:2px solid #f59e0b;border-radius:12px;padding:1rem 1.2rem;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.5)'
         const h = []
-        h.push('<div style="display:flex;align-items:flex-start;gap:.6rem">')
-        h.push('<span style="font-size:1.2rem">&#9888;&#65039;</span>')
-        h.push('<div><p style="font-size:.8rem;font-weight:700;color:#f59e0b;margin:0 0 .2rem">Key #'+(idx+1)+' con '+ credits +' crédito'+(credits===1?'':'s')+' restante'+(credits===1?'':'s')+'</p>')
+        h.push('<div style="display:flex;align-items:flex-start;gap:.6rem"><span style="font-size:1.2rem">&#9888;</span><div>')
+        h.push('<p style="font-size:.8rem;font-weight:700;color:#f59e0b;margin:0 0 .2rem">Key "'+(k.nombre||'#'+(idx+1))+'" con '+k.credits+' crédito'+(k.credits===1?'':'s')+' restante'+(k.credits===1?'':'s')+'</p>')
         h.push('<p style="font-size:.72rem;color:#fde68a;margin:0 0 .5rem">Configurá otra key antes de que se agote.</p>')
-        h.push('<button onclick="abrirConfigMotorRembg()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:.25rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;margin-right:.4rem">Configurar</button>')
+        h.push('<button id="rembg-alert-cfg" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:.25rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;margin-right:.4rem">Configurar</button>')
         h.push('<button id="rembg-alert-close" style="background:none;border:none;color:#9ca3af;font-size:.7rem;cursor:pointer">Cerrar</button>')
         h.push('</div></div>')
         div.innerHTML = h.join('')
+        div.querySelector('#rembg-alert-cfg').onclick = () => { div.remove(); abrirConfigMotorRembg() }
         div.querySelector('#rembg-alert-close').onclick = () => div.remove()
         document.body.appendChild(div)
         setTimeout(() => { if(div.parentNode) div.remove() }, 15000)
@@ -8389,12 +8364,9 @@
         const btnRec = document.getElementById('fotoBtnRecortar')
         errEl.textContent = ''
         btnRec.disabled = true
-
         await _cargarConfigMotor()
-
         try {
           if (_rembgMotor === 'removebg') {
-            // ── remove.bg API ──────────────────────────────────────────────
             btnRec.textContent = '⏳ Procesando con remove.bg...'
             const tc = document.createElement('canvas')
             tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
@@ -8406,14 +8378,11 @@
             await new Promise(res => { imgEl.onload = res })
             const rc = document.createElement('canvas')
             rc.width = imgEl.width; rc.height = imgEl.height
-            const rctx = rc.getContext('2d', { willReadFrequently: true })
-            rctx.drawImage(imgEl, 0, 0)
-            const imgData = rctx.getImageData(0, 0, rc.width, rc.height)
+            rc.getContext('2d', { willReadFrequently: true }).drawImage(imgEl, 0, 0)
+            const imgData = rc.getContext('2d').getImageData(0, 0, rc.width, rc.height)
             URL.revokeObjectURL(imgEl.src)
-            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
-            fotoAplicarResultado(finalData)
+            fotoAplicarResultado(fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height))
           } else {
-            // ── RMBG-1.4 local ─────────────────────────────────────────────
             btnRec.textContent = '⏳ Iniciando IA...'
             const loaded = await cargarBgRemoval((msg) => { btnRec.textContent = '⏳ ' + msg })
             if (!loaded) throw new Error('No se pudo cargar el modelo')
@@ -8421,9 +8390,8 @@
             const tc = document.createElement('canvas')
             tc.width = fotoOrigImg.width; tc.height = fotoOrigImg.height
             tc.getContext('2d', { willReadFrequently: true }).drawImage(fotoOrigImg, 0, 0)
-            const dataUrl = tc.toDataURL('image/png')
             const RawImage = window._tf?.RawImage
-            const rawImg = await RawImage.fromURL(dataUrl)
+            const rawImg = await RawImage.fromURL(tc.toDataURL('image/png'))
             const { pixel_values } = await _rmbgProcessor(rawImg)
             const { output } = await _rmbgModel({ input: pixel_values })
             btnRec.textContent = '⏳ Refinando bordes...'
@@ -8435,16 +8403,13 @@
             srcCtx.drawImage(fotoOrigImg, 0, 0, maskW, maskH)
             let imgData = srcCtx.getImageData(0, 0, maskW, maskH)
             const pixels = imgData.data
-            for (let y = 0; y < maskH; y++)
-              for (let x = 0; x < maskW; x++)
-                pixels[(y*maskW+x)*4+3] = Math.round(maskData[y][x] * 255)
+            for (let y=0;y<maskH;y++) for (let x=0;x<maskW;x++) pixels[(y*maskW+x)*4+3] = Math.round(maskData[y][x]*255)
             imgData = fotoPostprocess(imgData, fotoOrigImg)
-            const finalData = fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height)
-            fotoAplicarResultado(finalData)
+            fotoAplicarResultado(fotoEscalarResultado(imgData, fotoOrigImg.width, fotoOrigImg.height))
           }
         } catch(err) {
           console.warn('Remoción de fondo falló:', err)
-          errEl.textContent = '⚠ ' + (err.message || 'Error al procesar. Intentá el recorte manual.')
+          errEl.textContent = '⚠ ' + (err.message || 'Error. Usá el recorte manual.')
           document.getElementById('fotoTolRow').style.display = 'flex'
           fotoRecortarFallback()
           btnRec.textContent = '✂️ Re-recortar'
@@ -10098,7 +10063,7 @@
       }
       // ── Fin gestor de mantenimiento ──────────────────────────────────────
 
-      // ── Configuración motor remoción de fondo + múltiples API keys ────────
+      // ── Configuración motor remoción + múltiples API keys (admin) ────────
       window.abrirConfigMotorRembg = async function() {
         await _cargarConfigMotor()
         const existing = document.getElementById('modalConfigMotorRembg')
@@ -10113,46 +10078,38 @@
           const bRS = 'flex:1;padding:.5rem;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);border:2px solid '+(!isBiref?'#f59e0b':'rgba(255,255,255,.1)')+';background:'+(!isBiref?'rgba(245,158,11,.15)':'transparent')
           const h = []
           h.push('<div style="background:var(--bg-card,#0a2535);border:1px solid rgba(21,154,156,.4);border-radius:16px;padding:1.5rem;max-width:460px;width:100%;display:flex;flex-direction:column;gap:1rem">')
-          // Header
           h.push('<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:.9rem;font-weight:700;color:var(--cyan);margin:0">Motor de remoción de fondo</h3><button id="rmbg-x" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&#10005;</button></div>')
-          // Motor selector
           h.push('<div style="display:flex;flex-direction:column;gap:.4rem"><label style="font-size:.78rem;color:var(--text);font-weight:600">Motor activo</label><div style="display:flex;gap:.5rem">')
           h.push('<button id="rmbg-biref" style="'+bBS+'">RMBG-1.4 local<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Sin límites, ~45MB, sin internet</span></button>')
           h.push('<button id="rmbg-api" style="'+bRS+'">remove.bg API<br><span style="font-size:.65rem;color:var(--muted);font-weight:400">Alta calidad, usa créditos</span></button>')
           h.push('</div></div>')
-          // Keys list
-          h.push('<div style="display:flex;flex-direction:column;gap:.4rem">')
-          h.push('<div style="display:flex;justify-content:space-between;align-items:center"><label style="font-size:.78rem;color:var(--text);font-weight:600">API Keys de remove.bg</label><button id="rmbg-addkey" style="background:rgba(21,154,156,.15);border:1px solid rgba(21,154,156,.3);color:var(--cyan);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;cursor:pointer">+ Agregar key</button></div>')
+          h.push('<div style="display:flex;flex-direction:column;gap:.4rem"><div style="display:flex;justify-content:space-between;align-items:center"><label style="font-size:.78rem;color:var(--text);font-weight:600">API Keys de remove.bg</label><button id="rmbg-addkey" style="background:rgba(21,154,156,.15);border:1px solid rgba(21,154,156,.3);color:var(--cyan);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;cursor:pointer">+ Agregar key</button></div>')
           h.push('<div id="rmbg-keys-list">')
-          if (_rembgKeys.length === 0) {
+          if (!_rembgKeys.length) {
             h.push('<p style="font-size:.72rem;color:var(--muted);padding:.3rem">No hay keys configuradas.</p>')
           } else {
             _rembgKeys.forEach((k,i) => {
               const isActiva = i === _rembgKeyActivo
-              const credColor = k.credits === null ? 'var(--muted)' : k.credits <= 5 ? '#f59e0b' : '#4ecca3'
-              const credTxt = k.credits === null ? 'Créditos desconocidos' : k.credits + ' crédito' + (k.credits===1?'':'s')
-              h.push('<div data-key-idx="'+i+'" style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:rgba(255,255,255,.04);border:1px solid '+(isActiva?'var(--cyan)':'rgba(255,255,255,.07)')+';border-radius:8px;margin-bottom:.3rem">')
-              h.push('<span style="font-size:.7rem;font-weight:700;color:'+(isActiva?'var(--cyan)':'var(--muted)')+';min-width:1.2rem">'+(isActiva?'▶':'·')+'</span>')
-              h.push('<div style="flex:1;min-width:0"><p style="font-size:.75rem;color:var(--text);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Key #'+(i+1)+' — '+(k.nombre||'sin nombre')+'</p><p style="font-size:.68rem;color:'+credColor+';margin:0">'+credTxt+'</p></div>')
+              const credColor = k.credits===null?'var(--muted)':k.credits<=5?'#f59e0b':'#4ecca3'
+              const credTxt = k.credits===null?'Créditos desconocidos':k.credits+' crédito'+(k.credits===1?'':'s')
+              h.push('<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:rgba(255,255,255,.04);border:1px solid '+(isActiva?'var(--cyan)':'rgba(255,255,255,.07)')+';border-radius:8px;margin-bottom:.3rem">')
+              h.push('<span style="font-size:.7rem;font-weight:700;color:'+(isActiva?'var(--cyan)':'var(--muted)')+'">'+( isActiva?'▶':'·')+'</span>')
+              h.push('<div style="flex:1;min-width:0"><p style="font-size:.75rem;color:var(--text);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Key #'+(i+1)+' — '+(k.nombre||'sin nombre')+'</p><p style="font-size:.68rem;color:'+credColor+';margin:0">'+credTxt+'</p></div>')
               h.push('<button data-setactivo="'+i+'" style="background:rgba(21,154,156,.12);border:1px solid rgba(21,154,156,.25);color:var(--cyan);border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">Usar</button>')
               h.push('<button data-del="'+i+'" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;border-radius:5px;padding:.2rem .5rem;font-size:.68rem;cursor:pointer">&#128465;</button>')
               h.push('</div>')
             })
           }
           h.push('</div></div>')
-          // Add key form (hidden by default)
           h.push('<div id="rmbg-addkey-form" style="display:none;flex-direction:column;gap:.4rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.7rem">')
           h.push('<label style="font-size:.75rem;color:var(--text);font-weight:600">Nueva API Key</label>')
           h.push('<input id="rmbg-newkey-name" placeholder="Nombre (ej: Cuenta principal)" style="padding:.4rem .6rem;background:var(--bg2,#0d1117);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text);font-size:.75rem"/>')
           h.push('<input id="rmbg-newkey-val" type="password" placeholder="API Key de remove.bg" style="padding:.4rem .6rem;background:var(--bg2,#0d1117);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text);font-size:.75rem;font-family:monospace"/>')
           h.push('<div style="display:flex;gap:.4rem"><button id="rmbg-newkey-save" style="flex:1;background:var(--cyan,#159a9c);color:#fff;border:none;border-radius:6px;padding:.35rem;font-size:.75rem;font-weight:700;cursor:pointer">Guardar key</button><button id="rmbg-newkey-cancel" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--muted);border-radius:6px;padding:.35rem .7rem;font-size:.75rem;cursor:pointer">Cancelar</button></div>')
           h.push('</div>')
-          // Status + footer
           h.push('<div id="rmbg-status" style="font-size:.72rem;color:var(--muted);min-height:.8rem"></div>')
-          h.push('<div style="display:flex;gap:.5rem;justify-content:flex-end">')
-          h.push('<button id="rmbg-cancel" style="padding:.4rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--muted);cursor:pointer;font-size:.78rem">Cerrar</button>')
-          h.push('<button id="rmbg-save-motor" style="padding:.4rem 1rem;border-radius:8px;border:none;background:var(--cyan,#159a9c);color:#fff;cursor:pointer;font-size:.78rem;font-weight:700">Guardar motor</button>')
-          h.push('</div></div>')
+          h.push('<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="rmbg-cancel" style="padding:.4rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--muted);cursor:pointer;font-size:.78rem">Cerrar</button><button id="rmbg-save-motor" style="padding:.4rem 1rem;border-radius:8px;border:none;background:var(--cyan,#159a9c);color:#fff;cursor:pointer;font-size:.78rem;font-weight:700">Guardar motor</button></div>')
+          h.push('</div>')
           modal.innerHTML = h.join('')
           bindEvents()
         }
@@ -10161,24 +10118,18 @@
           modal.querySelector('#rmbg-x').onclick      = () => modal.remove()
           modal.querySelector('#rmbg-cancel').onclick  = () => modal.remove()
           modal.addEventListener('click', e => { if(e.target===modal) modal.remove() })
-
           modal.querySelector('#rmbg-biref').onclick = () => { _rembgMotor='birefnet'; renderModal() }
           modal.querySelector('#rmbg-api').onclick   = () => { _rembgMotor='removebg'; renderModal() }
-
-          // Guardar motor en Supabase
           modal.querySelector('#rmbg-save-motor').onclick = async () => {
             const st = modal.querySelector('#rmbg-status')
             st.style.color='var(--muted)'; st.textContent='Guardando...'
             const ex = await supabase.from('media').select('id').eq('tipo','config-rembg-motor').maybeSingle()
-            const row = {tipo:'config-rembg-motor', url:_rembgMotor, nombre:'rembg_motor'}
             const res = ex.data
               ? await supabase.from('media').update({url:_rembgMotor}).eq('tipo','config-rembg-motor')
-              : await supabase.from('media').insert([row])
+              : await supabase.from('media').insert([{tipo:'config-rembg-motor',url:_rembgMotor,nombre:'rembg_motor_'+Date.now()}])
             if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message }
             else { st.style.color='#4ecca3'; st.textContent='✓ Motor guardado' }
           }
-
-          // Agregar key
           modal.querySelector('#rmbg-addkey').onclick = () => {
             modal.querySelector('#rmbg-addkey-form').style.display='flex'
             modal.querySelector('#rmbg-addkey').style.display='none'
@@ -10193,16 +10144,12 @@
             if (!key) { alert('Ingresá una API key'); return }
             const st = modal.querySelector('#rmbg-status')
             st.style.color='var(--muted)'; st.textContent='Guardando...'
-            const idx = _rembgKeys.length + 1
-            const tipo = 'config-rembg-key-' + Date.now()
-            const res = await supabase.from('media').insert([{tipo, url: key, nombre: nombre||('Key #'+idx)}])
+            const res = await supabase.from('media').insert([{tipo:'config-rembg-key-'+Date.now(), url:key, nombre:nombre||('Key #'+(_rembgKeys.length+1))}])
             if (res.error) { st.style.color='#f87171'; st.textContent='Error: '+res.error.message; return }
             st.style.color='#4ecca3'; st.textContent='✓ Key guardada'
             await _cargarConfigMotor()
             renderModal()
           }
-
-          // Usar key / borrar key
           modal.querySelectorAll('[data-setactivo]').forEach(btn => {
             btn.onclick = () => { _rembgKeyActivo = parseInt(btn.dataset.setactivo); renderModal() }
           })
@@ -10219,7 +10166,6 @@
             }
           })
         }
-
         renderModal()
         document.body.appendChild(modal)
       }
