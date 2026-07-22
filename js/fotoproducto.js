@@ -267,7 +267,10 @@
             const res = await fetch('https://api.remove.bg/v1.0/removebg', { method:'POST', headers:{'X-Api-Key':k.key}, body:fd })
             if (res.status === 402) {
               k.credits = 0
-              try { await supabase.from('media').update({ url: k.key+'|0|'+(k.usos||0) }).eq('id', k.id) } catch(e) {}
+              try {
+                const upd402 = await supabase.from('media').update({ url: k.key+'|0|'+(k.usos||0) }).eq('id', k.id)
+                if (upd402.error) console.error('rembg: el update (402) devolvió error', upd402.error, k)
+              } catch(e) { console.error('rembg: excepción al guardar créditos/usos (402)', e, k) }
               lastErr = new Error('Sin créditos en key "'+(k.nombre||'#'+(idx+1))+'"')
               continue
             }
@@ -276,7 +279,10 @@
             if (rem !== null) k.credits = parseInt(rem)
             k.usos = (k.usos || 0) + 1
             window._rembgKeyActivo = idx
-            try { await supabase.from('media').update({ url: k.key+'|'+(k.credits ?? '')+'|'+k.usos }).eq('id', k.id) } catch(e) {}
+            try {
+              const upd = await supabase.from('media').update({ url: k.key+'|'+(k.credits ?? '')+'|'+k.usos }).eq('id', k.id)
+              if (upd.error) console.error('rembg: el update de créditos/usos devolvió error', upd.error, k)
+            } catch(e) { console.error('rembg: excepción al guardar créditos/usos', e, k) }
             if (esAdmin && k.credits !== null && k.credits <= 5) _alertaCreditosBajos(k, idx)
             return await res.blob()
           } catch(e) { lastErr = e }
@@ -620,6 +626,7 @@
 
         await window._cargarConfigMotor()
         _actualizarMotorLabel()
+        console.log('[fotoproducto] motor activo para este recorte:', window._rembgMotor, '— keys cargadas:', (window._rembgKeys||[]).length)
 
         try {
           if (window._rembgMotor === 'removebg') {
