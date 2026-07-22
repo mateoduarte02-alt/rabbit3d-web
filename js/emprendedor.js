@@ -4,17 +4,29 @@
 
     let _maintTools = {}       // { toolId: true/false } — bloqueada con overlay "En mantenimiento"
     let _hiddenTools = {}      // { toolId: true/false } — oculta directamente del catálogo de herramientas
+    let _hiddenSections = {}   // { sectionId: true/false } — secciones completas de la página (ej: Makers)
     let _maintLoaded = false
+
+    // Secciones de la página que se pueden ocultar por completo desde el admin.
+    // 'extra' son selectores adicionales que se ocultan/muestran junto con la sección
+    // (links de navegación, banners promocionales, etc.)
+    const SECCIONES_PAGINA = [
+      { id: 'makers', label: 'Makers de la Comunidad', selector: '#makers',
+        extra: ['#navLinkMakers', '#mm-makers', '#makersPromo'] }
+    ]
 
     async function cargarMantenimiento() {
       if (_maintLoaded) return
       try {
         const { data } = await supabase.from('media')
-          .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
+          .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%,tipo.like.config-section-%')
         if (data) data.forEach(r => {
           if (r.tipo.startsWith('config-maint-')) {
             const id = r.tipo.replace('config-maint-','')
             _maintTools[id] = (r.nombre === '1' || r.url === '1')  // 'nombre'=1 es el formato viejo, 'url'=1 el nuevo
+          } else if (r.tipo.startsWith('config-section-')) {
+            const id = r.tipo.replace('config-section-','')
+            _hiddenSections[id] = (r.nombre === '1' || r.url === '1')
           } else if (r.tipo.startsWith('config-hidden-')) {
             const id = r.tipo.replace('config-hidden-','')
             _hiddenTools[id] = (r.nombre === '1' || r.url === '1')
@@ -22,11 +34,28 @@
         })
         _maintLoaded = true
         _aplicarOverlaysMant()
+        _aplicarSeccionesOcultas()
       } catch(e) {}
     }
 
     function _estaEnMant(toolId) { return !!_maintTools[toolId] }
     function _estaOculta(toolId) { return !!_hiddenTools[toolId] }
+
+    // Aplica ocultar/mostrar en cada sección registrada según su estado.
+    // A diferencia de las herramientas, acá "oculta" es total: ni el admin la ve
+    // en la página — el control para reactivarla vive solo en el gestor (admin).
+    function _aplicarSeccionesOcultas() {
+      SECCIONES_PAGINA.forEach(sec => {
+        const oculta = !!_hiddenSections[sec.id]
+        const el = document.querySelector(sec.selector)
+        if (!el) return
+        el.style.display = oculta ? 'none' : ''
+        ;(sec.extra || []).forEach(sel => {
+          const e = document.querySelector(sel)
+          if (e) e.style.display = oculta ? 'none' : ''
+        })
+      })
+    }
 
     // Muestra overlay visual en la card si está en mantenimiento, y la oculta si corresponde
     function _aplicarOverlaysMant() {
@@ -297,11 +326,13 @@
         // Recargar estado fresco desde Supabase
         try {
           const { data } = await supabase.from('media')
-            .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%')
+            .select('tipo,nombre,url').or('tipo.like.config-maint-%,tipo.like.config-hidden-%,tipo.like.config-section-%')
           _maintTools = {}
           _hiddenTools = {}
+          _hiddenSections = {}
           if (data) data.forEach(r => {
             if (r.tipo.startsWith('config-maint-')) _maintTools[r.tipo.replace('config-maint-','')] = (r.nombre === '1' || r.url === '1')
+            else if (r.tipo.startsWith('config-section-')) _hiddenSections[r.tipo.replace('config-section-','')] = (r.nombre === '1' || r.url === '1')
             else if (r.tipo.startsWith('config-hidden-')) _hiddenTools[r.tipo.replace('config-hidden-','')] = (r.nombre === '1' || r.url === '1')
           })
         } catch(e) {}
@@ -344,6 +375,27 @@
             lista.appendChild(row)
           })
         })
+
+        // Secciones de la página (Makers, etc.)
+        const listaSec = document.getElementById('mantListaSecciones')
+        if (listaSec) {
+          listaSec.innerHTML = ''
+          SECCIONES_PAGINA.forEach(sec => {
+            const oculta = !!_hiddenSections[sec.id]
+            const row = document.createElement('div')
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:.4rem;padding:.5rem .7rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px'
+            row.innerHTML = `
+              <span style="font-size:.78rem;color:var(--text)">${sec.label}</span>
+              <button data-seccion-id="${sec.id}" data-oculta="${oculta}"
+                style="padding:.3rem .8rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;
+                  background:${oculta ? 'rgba(239,68,68,.15)' : 'rgba(255,255,255,.06)'};
+                  color:${oculta ? '#f87171' : 'var(--muted)'}"
+                onclick="toggleSeccionOculta(this)">
+                ${oculta ? '🙈 Oculta' : '👁 Visible'}
+              </button>`
+            listaSec.appendChild(row)
+          })
+        }
       }
 
       window.toggleMantTool = async function(btn) {
@@ -387,6 +439,26 @@
           if (labCard) _toggleHiddenCard(labCard, id, nuevoEstado)
           const emprCard = document.querySelector('[data-empr-id="'+id+'"]')
           if (emprCard) _toggleHiddenCard(emprCard, id, nuevoEstado)
+          _renderMantListas()
+        } catch(e) {
+          btn.disabled = false
+          alert('Error al guardar: ' + (e.message || e))
+        }
+      }
+
+      window.toggleSeccionOculta = async function(btn) {
+        const id = btn.dataset.seccionId
+        const oculta = btn.dataset.oculta === 'true'
+        const nuevoEstado = !oculta
+        btn.disabled = true
+        btn.textContent = '...'
+        try {
+          await supabase.from('media').delete().eq('tipo','config-section-'+id)
+          if (nuevoEstado) {
+            await supabase.from('media').insert([{tipo:'config-section-'+id, url:'1', nombre:'config-section-'+id}])
+          }
+          _hiddenSections[id] = nuevoEstado
+          _aplicarSeccionesOcultas()
           _renderMantListas()
         } catch(e) {
           btn.disabled = false
