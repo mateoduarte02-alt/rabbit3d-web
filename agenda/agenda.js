@@ -268,6 +268,17 @@
   // ══════════════════════════════════════════
   //  VISTA: toggle lista / calendario
   // ══════════════════════════════════════════
+  // ══════════════════════════════════════════
+  //  DRAWER MOBILE (sidebar deslizable)
+  // ══════════════════════════════════════════
+  const sidebarEl = document.getElementById('agSidebar')
+  const overlayEl = document.getElementById('agSidebarOverlay')
+  function abrirDrawer() { sidebarEl.classList.add('abierto'); overlayEl.classList.add('abierto') }
+  function cerrarDrawer() { sidebarEl.classList.remove('abierto'); overlayEl.classList.remove('abierto') }
+  document.getElementById('agBtnMenu').addEventListener('click', abrirDrawer)
+  overlayEl.addEventListener('click', cerrarDrawer)
+  sidebarEl.addEventListener('click', e => { if (e.target.closest('.ag-nav-item')) cerrarDrawer() })
+
   document.getElementById('agVistaToggle').addEventListener('click', e => {
     const btn = e.target.closest('[data-vista]')
     if (!btn) return

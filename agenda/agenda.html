@@ -21,6 +21,9 @@
     .ag-nav-item.activo { background: var(--cyan-dim); color: var(--cyan); font-weight: 700; border: 1px solid var(--cyan-mid); }
     .ag-sidebar__footer { border-top: 1px solid var(--border); padding-top: .8rem; margin-top: .8rem; }
 
+    .ag-mobile-topbar { display: none; }
+    .ag-sidebar-overlay { display: none; }
+
     /* ── Main ── */
     .ag-main { flex: 1; min-width: 0; padding: 1.8rem 2.2rem 3rem; max-width: 900px; }
     .ag-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; flex-wrap: wrap; gap: .8rem; }
@@ -105,22 +108,33 @@
     /* ═══ MOBILE ═══ */
     @media (max-width: 860px) {
       .ag-shell { flex-direction: column; }
-      .ag-sidebar { width: 100%; height: auto; position: static; flex-direction: row; align-items: center; padding: .8rem 1rem; gap: 1rem; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
-      .ag-sidebar__brand { padding: 0; flex-shrink: 0; }
-      .ag-sidebar__nav { flex-direction: row; flex: 0; }
-      .ag-nav-item { flex-shrink: 0; white-space: nowrap; padding: .5rem .7rem; }
-      .ag-sidebar__footer { border: none; padding: 0; margin: 0; }
+
+      /* Barra superior angosta con botón de menú */
+      .ag-mobile-topbar { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border-bottom: 1px solid var(--border); padding: .8rem 1rem; position: sticky; top: 0; z-index: 100; }
+      .ag-mobile-topbar__brand { display: flex; align-items: center; gap: .5rem; color: var(--text); font-family: var(--font-head); font-weight: 700; font-size: .78rem; letter-spacing: .04em; }
+      .ag-mobile-topbar__brand img { width: 22px; height: 22px; }
+      .ag-mobile-topbar__btn { background: rgba(255,255,255,.06); border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 36px; height: 36px; font-size: 1rem; cursor: pointer; }
+
+      /* Overlay oscuro detrás del drawer */
+      .ag-sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,8,15,.6); z-index: 199; }
+      .ag-sidebar-overlay.abierto { display: block; }
+
+      /* Sidebar pasa a ser un drawer que entra desde la izquierda */
+      .ag-sidebar { position: fixed; top: 0; left: -85%; width: 78%; max-width: 280px; height: 100vh; z-index: 200; transition: left .25s ease; box-shadow: 4px 0 20px rgba(0,0,0,.35); }
+      .ag-sidebar.abierto { left: 0; }
+
       .ag-main { padding: 1.2rem .9rem 3rem; }
       .ag-topbar h1 { font-size: 1.1rem; }
-      .ag-stats { grid-template-columns: 1fr 1fr; }
+      .ag-stats { grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+      .ag-stat-card { flex-direction: column; align-items: flex-start; gap: .4rem; padding: .7rem .6rem; }
+      .ag-stat-card__icon { width: 28px; height: 28px; font-size: .8rem; }
+      .ag-stat-card__label { font-size: .6rem; }
+      .ag-stat-card__num { font-size: .95rem; }
 
       .ag-toolbar { flex-direction: column; align-items: stretch; }
       .ag-filtros { overflow-x: auto; flex-wrap: nowrap; padding-bottom: .3rem; -webkit-overflow-scrolling: touch; }
       .ag-filtros label { flex-shrink: 0; margin-left: .5rem !important; }
       .ag-filtro { flex-shrink: 0; }
-
-      .ag-acciones-top { flex-direction: column; }
-      .ag-acciones-top .btn { width: 100%; text-align: center; }
 
       .ag-item { padding: .8rem .9rem; gap: .6rem; flex-wrap: wrap; }
       .ag-item__acciones { width: 100%; justify-content: flex-end; margin-top: .3rem; }
@@ -141,7 +155,12 @@
 <body>
 
   <div class="ag-shell">
-    <aside class="ag-sidebar">
+    <div class="ag-mobile-topbar">
+      <div class="ag-mobile-topbar__brand"><img src="../favicon.svg" alt=""/> LA MADRIGUERA</div>
+      <button class="ag-mobile-topbar__btn" id="agBtnMenu">☰</button>
+    </div>
+    <div class="ag-sidebar-overlay" id="agSidebarOverlay"></div>
+    <aside class="ag-sidebar" id="agSidebar">
       <div class="ag-sidebar__brand">
         <img src="../favicon.svg" alt=""/>
         LA MADRIGUERA
