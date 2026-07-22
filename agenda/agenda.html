@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agenda — La Madriguera</title>
+  <meta name="robots" content="noindex, nofollow"/>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="../styles.css"/>
+  <style>
+    body { background: var(--bg); min-height: 100vh; }
+    .ag-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); }
+    .ag-header__brand { display: flex; align-items: center; gap: .6rem; font-family: var(--font-head); color: var(--text); font-weight: 700; letter-spacing: .05em; text-decoration: none; }
+    .ag-header__brand img { width: 32px; height: 32px; }
+    .ag-volver { color: var(--muted); font-size: .8rem; text-decoration: none; }
+    .ag-volver:hover { color: var(--cyan); }
+    .ag-main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .ag-intro { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.3rem; flex-wrap: wrap; gap: .6rem; }
+    .ag-intro h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.3rem; letter-spacing: .04em; margin: 0; }
+    .ag-vista-toggle { display: flex; gap: .3rem; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 10px; padding: .25rem; }
+    .ag-vista-btn { background: none; border: none; color: var(--muted); font-size: .74rem; font-weight: 600; padding: .35rem .8rem; border-radius: 7px; cursor: pointer; }
+    .ag-vista-btn.activo { background: var(--cyan-dim); color: var(--cyan); }
+
+    .ag-banner { border-radius: var(--radius); padding: .9rem 1.1rem; margin-bottom: 1.5rem; font-size: .82rem; display: none; }
+    .ag-banner--danger { background: rgba(217,64,96,.12); border: 1px solid rgba(217,64,96,.4); color: #ff7a94; }
+    .ag-banner--warn { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4); color: #f59e0b; }
+
+    .ag-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.2rem; align-items: center; justify-content: space-between; }
+    .ag-filtros { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+    .ag-filtro { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted); font-size: .72rem; padding: .35rem .8rem; border-radius: 20px; cursor: pointer; }
+    .ag-filtro.activo { border-width: 1px; }
+    .ag-acciones-top { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+    .ag-lista { display: flex; flex-direction: column; gap: .6rem; }
+    .ag-item { display: flex; align-items: flex-start; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: var(--radius); padding: .9rem 1.1rem; }
+    .ag-item--vencido { border-left-color: #d94060 !important; }
+    .ag-item--por-vencer { border-left-color: #f59e0b !important; }
+    .ag-item--entregado { opacity: .55; }
+    .ag-item__icono { font-size: 1.2rem; line-height: 1; margin-top: .1rem; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ag-item__body { flex: 1; min-width: 0; }
+    .ag-item__titulo { color: var(--text); font-weight: 700; font-size: .88rem; margin: 0 0 .2rem; }
+    .ag-item__titulo--tachado { text-decoration: line-through; }
+    .ag-item__desc { color: var(--muted); font-size: .74rem; margin: 0 0 .3rem; }
+    .ag-item__fecha { font-size: .72rem; font-weight: 700; }
+    .ag-item__fecha--vencido { color: #d94060; }
+    .ag-item__fecha--por-vencer { color: #f59e0b; }
+    .ag-item__fecha--ok { color: var(--muted); }
+    .ag-item__pago { display: inline-block; margin-left: .5rem; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 10px; }
+    .ag-item__pago--pagado { background: rgba(78,204,163,.15); color: #4ecca3; }
+    .ag-item__pago--pendiente { background: rgba(217,64,96,.12); color: #d94060; }
+    .ag-item__acciones { display: flex; gap: .35rem; flex-shrink: 0; }
+    .ag-item__btn { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: .8rem; }
+    .ag-item__btn:hover { color: var(--cyan); border-color: var(--cyan-mid); }
+    .ag-item__btn--check.activo { color: #4ecca3; border-color: #4ecca355; }
+    .ag-empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 3rem 1rem; }
+
+    .ag-noauth { text-align: center; color: var(--muted); padding: 4rem 1rem; }
+    .ag-noauth h2 { color: var(--cyan); font-family: var(--font-head); margin-bottom: .8rem; }
+
+    .ag-tipo-select { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .ag-tipo-btn { padding: .5rem .8rem; border-radius: 8px; border: 2px solid var(--border); background: transparent; color: var(--muted); font-size: .78rem; font-weight: 600; cursor: pointer; }
+    .ag-tipo-btn.activo { border-color: var(--cyan); background: var(--cyan-dim); color: var(--cyan); }
+    .ag-pago-toggle { display: none; gap: .5rem; margin-bottom: 1rem; }
+    .ag-pago-btn { flex: 1; padding: .5rem; border-radius: 8px; border: 2px solid var(--border); background: transparent; color: var(--muted); font-size: .78rem; font-weight: 600; cursor: pointer; }
+    .ag-pago-btn.activo-pagado { border-color: #4ecca3; background: rgba(78,204,163,.12); color: #4ecca3; }
+    .ag-pago-btn.activo-pendiente { border-color: #d94060; background: rgba(217,64,96,.12); color: #d94060; }
+
+    /* Calendario */
+    .ag-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .ag-cal-nav__btn { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: .9rem; }
+    .ag-cal-nav__mes { font-family: var(--font-head); color: var(--cyan); font-size: .95rem; letter-spacing: .03em; text-transform: capitalize; }
+    .ag-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+    .ag-cal-dow { text-align: center; font-size: .65rem; color: var(--muted); font-weight: 700; padding-bottom: .3rem; }
+    .ag-cal-day { min-height: 76px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; }
+    .ag-cal-day--fuera { opacity: .3; }
+    .ag-cal-day--hoy { border-color: var(--cyan-mid); }
+    .ag-cal-day__num { font-size: .68rem; color: var(--muted); font-weight: 700; }
+    .ag-cal-chip { font-size: .6rem; padding: .12rem .35rem; border-radius: 5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    .ag-cal-chip--entregado { opacity: .5; text-decoration: line-through; }
+    .ag-cal-mas { font-size: .58rem; color: var(--muted); padding-left: .2rem; }
+    .ag-cal-day { cursor: pointer; }
+    .ag-cal-day--seleccionado { border-color: var(--cyan) !important; box-shadow: 0 0 0 1px var(--cyan); }
+    .ag-cal-dot-wrap { display: none; flex-wrap: wrap; gap: 2px; }
+    .ag-cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .ag-cal-detalle { margin-top: 1rem; display: flex; flex-direction: column; gap: .5rem; }
+    .ag-cal-detalle__titulo { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin: 0 0 .2rem; }
+
+    /* Gestor de tipos */
+    .ag-tipo-row { display: flex; align-items: center; gap: .6rem; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .7rem; margin-bottom: .5rem; }
+    .ag-tipo-row__color { width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; }
+    .ag-tipo-row__nombre { flex: 1; font-size: .82rem; color: var(--text); }
+    .ag-tipo-row__pago { font-size: .62rem; color: var(--muted); }
+
+    /* ═══ MOBILE ═══ */
+    @media (max-width: 640px) {
+      .ag-header { padding: 1rem 1.1rem; }
+      .ag-header__brand { font-size: .82rem; }
+      .ag-header__brand img { width: 26px; height: 26px; }
+      .ag-volver { font-size: .72rem; }
+      .ag-main { padding: 1.3rem .9rem 3rem; }
+      .ag-intro { flex-direction: column; align-items: flex-start; }
+      .ag-intro h1 { font-size: 1.15rem; }
+      .ag-vista-toggle { width: 100%; }
+      .ag-vista-btn { flex: 1; }
+
+      .ag-toolbar { flex-direction: column; align-items: stretch; }
+      .ag-filtros { overflow-x: auto; flex-wrap: nowrap; padding-bottom: .3rem; -webkit-overflow-scrolling: touch; }
+      .ag-filtros label { flex-shrink: 0; margin-left: .5rem !important; }
+      .ag-filtro { flex-shrink: 0; }
+
+      .ag-acciones-top { flex-direction: column; }
+      .ag-acciones-top .btn { width: 100%; text-align: center; }
+
+      .ag-item { padding: .8rem .9rem; gap: .6rem; flex-wrap: wrap; }
+      .ag-item__acciones { width: 100%; justify-content: flex-end; margin-top: .3rem; }
+      .ag-item__titulo { font-size: .84rem; }
+
+      /* Calendario: celdas más chicas, texto de los chips oculto — solo puntitos de color */
+      .ag-cal-day { min-height: 42px; padding: .25rem; gap: .15rem; }
+      .ag-cal-chip { display: none; }
+      .ag-cal-mas { display: none; }
+      .ag-cal-dot-wrap { display: flex; }
+      .ag-cal-dow { font-size: .58rem; }
+
+      .ag-tipo-select { gap: .4rem; }
+      .ag-tipo-btn { padding: .45rem .65rem; font-size: .72rem; }
+      .ag-pago-toggle { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="ag-header">
+    <a href="../index.html" class="ag-header__brand">
+      <img src="../favicon.svg" alt=""/>
+      LA MADRIGUERA
+    </a>
+    <a href="../index.html" class="ag-volver">← Volver al sitio</a>
+  </header>
+
+  <main class="ag-main">
+
+    <div id="agNoAuth" class="ag-noauth" style="display:none">
+      <h2>🔒 Acceso restringido</h2>
+      <p>Esta página es solo para el administrador. Iniciá sesión desde el sitio principal con tu cuenta de admin y volvé a entrar acá.</p>
+    </div>
+
+    <div id="agContenido" style="display:none">
+      <div class="ag-intro">
+        <h1>📋 Mi Agenda</h1>
+        <div class="ag-vista-toggle" id="agVistaToggle">
+          <button class="ag-vista-btn activo" data-vista="lista">📋 Lista</button>
+          <button class="ag-vista-btn" data-vista="calendario">📅 Calendario</button>
+        </div>
+      </div>
+
+      <div class="ag-banner" id="agBannerVencidos"></div>
+      <div class="ag-banner" id="agBannerPorVencer"></div>
+
+      <div class="ag-toolbar">
+        <div class="ag-filtros" id="agFiltros">
+          <button class="ag-filtro activo" data-tipo="todos">Todos</button>
+          <!-- filtros por tipo se agregan acá dinámicamente -->
+          <label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted);margin-left:.3rem">
+            <input type="checkbox" id="agVerEntregados"/> ver entregados
+          </label>
+        </div>
+      </div>
+
+      <div class="ag-acciones-top" style="margin-bottom:1.2rem">
+        <button class="btn btn--primary btn--sm" id="agBtnNuevo">+ Nueva entrada</button>
+        <button class="btn btn--sm" id="agBtnTipos">⚙ Tipos de entrada</button>
+        <button class="btn btn--sm" id="agBtnNotif">🔔 Activar notificaciones</button>
+        <a class="btn btn--sm" id="agBtnIcs" href="#" target="_blank" style="text-decoration:none">📅 Suscribirme en Google/Apple Calendar</a>
+      </div>
+
+      <!-- VISTA LISTA -->
+      <div id="agVistaLista">
+        <div class="ag-lista" id="agLista"></div>
+        <p class="ag-empty" id="agEmpty" style="display:none">No hay nada cargado todavía. Sumá tu primer pendiente.</p>
+      </div>
+
+      <!-- VISTA CALENDARIO -->
+      <div id="agVistaCalendario" style="display:none">
+        <div class="ag-cal-nav">
+          <button class="ag-cal-nav__btn" id="agCalPrev">←</button>
+          <p class="ag-cal-nav__mes" id="agCalMes"></p>
+          <button class="ag-cal-nav__btn" id="agCalNext">→</button>
+        </div>
+        <div class="ag-cal-grid" id="agCalGrid"></div>
+        <div class="ag-cal-detalle" id="agCalDetalle" style="display:none"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: nueva/editar entrada -->
+  <div class="modal-overlay" id="agModal">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModal">✕</button>
+      <h2 class="modal__title" id="agModalTitulo">Nueva entrada</h2>
+      <input type="hidden" id="agItemId"/>
+      <div class="ag-tipo-select" id="agTipoSelect"></div>
+      <div class="form-group">
+        <label class="form-label">Título</label>
+        <input type="text" id="agTitulo" class="form-input" placeholder="Ej: Entregar llavero a cliente X"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción (opcional)</label>
+        <textarea id="agDesc" class="form-input form-textarea" placeholder="Detalles..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha límite</label>
+        <input type="date" id="agFecha" class="form-input"/>
+      </div>
+      <div class="ag-pago-toggle" id="agPagoToggle">
+        <button type="button" class="ag-pago-btn activo-pendiente" data-pago="no">💸 No pagado</button>
+        <button type="button" class="ag-pago-btn" data-pago="si">✅ Pagado</button>
+      </div>
+      <p class="form-error" id="agError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardar">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de tipos de entrada -->
+  <div class="modal-overlay" id="agModalTipos">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalTipos">✕</button>
+      <h2 class="modal__title">Tipos de entrada</h2>
+      <div id="agTiposLista" style="margin-bottom:1.3rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar tipo nuevo</p>
+      <input type="hidden" id="agTipoEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agTipoNombre" class="form-input" placeholder="Ej: Cumpleaños"/>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Ícono (un emoji)</label>
+          <input type="text" id="agTipoIcono" class="form-input" placeholder="🎂" maxlength="4"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agTipoColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--text);margin-bottom:1rem">
+        <input type="checkbox" id="agTipoRequierePago"/> Este tipo lleva seguimiento de pago (pagado/no pagado)
+      </label>
+      <p class="form-error" id="agTipoError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarTipo">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionTipo" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="agenda.js" defer></script>
+</body>
+</html>
