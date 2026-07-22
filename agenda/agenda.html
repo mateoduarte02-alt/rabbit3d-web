@@ -9,27 +9,42 @@
   <link rel="stylesheet" href="../styles.css"/>
   <style>
     body { background: var(--bg); min-height: 100vh; }
-    .ag-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); }
-    .ag-header__brand { display: flex; align-items: center; gap: .6rem; font-family: var(--font-head); color: var(--text); font-weight: 700; letter-spacing: .05em; text-decoration: none; }
-    .ag-header__brand img { width: 32px; height: 32px; }
-    .ag-volver { color: var(--muted); font-size: .8rem; text-decoration: none; }
-    .ag-volver:hover { color: var(--cyan); }
-    .ag-main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    .ag-intro { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.3rem; flex-wrap: wrap; gap: .6rem; }
-    .ag-intro h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.3rem; letter-spacing: .04em; margin: 0; }
-    .ag-vista-toggle { display: flex; gap: .3rem; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 10px; padding: .25rem; }
-    .ag-vista-btn { background: none; border: none; color: var(--muted); font-size: .74rem; font-weight: 600; padding: .35rem .8rem; border-radius: 7px; cursor: pointer; }
-    .ag-vista-btn.activo { background: var(--cyan-dim); color: var(--cyan); }
+    .ag-shell { display: flex; min-height: 100vh; }
 
-    .ag-banner { border-radius: var(--radius); padding: .9rem 1.1rem; margin-bottom: 1.5rem; font-size: .82rem; display: none; }
-    .ag-banner--danger { background: rgba(217,64,96,.12); border: 1px solid rgba(217,64,96,.4); color: #ff7a94; }
-    .ag-banner--warn { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4); color: #f59e0b; }
+    /* ── Sidebar (mismo lenguaje visual del sitio, más oscuro) ── */
+    .ag-sidebar { width: 220px; flex-shrink: 0; background: var(--bg3); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 1.3rem 1rem; position: sticky; top: 0; height: 100vh; }
+    .ag-sidebar__brand { display: flex; align-items: center; gap: .55rem; color: var(--text); font-family: var(--font-head); font-weight: 700; font-size: .82rem; letter-spacing: .05em; padding: 0 .5rem 1.4rem; }
+    .ag-sidebar__brand img { width: 26px; height: 26px; }
+    .ag-sidebar__nav { display: flex; flex-direction: column; gap: .3rem; flex: 1; }
+    .ag-nav-item { display: flex; align-items: center; gap: .6rem; background: none; border: none; color: var(--muted); font-size: .82rem; font-weight: 500; padding: .65rem .8rem; border-radius: 9px; cursor: pointer; text-align: left; text-decoration: none; width: 100%; font-family: inherit; }
+    .ag-nav-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
+    .ag-nav-item.activo { background: var(--cyan-dim); color: var(--cyan); font-weight: 700; border: 1px solid var(--cyan-mid); }
+    .ag-sidebar__footer { border-top: 1px solid var(--border); padding-top: .8rem; margin-top: .8rem; }
+
+    /* ── Main ── */
+    .ag-main { flex: 1; min-width: 0; padding: 1.8rem 2.2rem 3rem; max-width: 900px; }
+    .ag-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; flex-wrap: wrap; gap: .8rem; }
+    .ag-topbar h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
+
+    .ag-noauth { text-align: center; color: var(--muted); padding: 5rem 1rem; max-width: 460px; margin: 0 auto; }
+    .ag-noauth h2 { color: var(--cyan); font-family: var(--font-head); margin-bottom: .8rem; }
+
+    /* Stat cards — resumen rápido arriba de todo */
+    .ag-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .8rem; margin-bottom: 1.4rem; }
+    .ag-stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem 1rem; display: flex; align-items: center; gap: .7rem; }
+    .ag-stat-card__icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; background: var(--cyan-dim); }
+    .ag-stat-card--warn .ag-stat-card__icon { background: rgba(245,158,11,.15); }
+    .ag-stat-card--danger .ag-stat-card__icon { background: rgba(217,64,96,.15); }
+    .ag-stat-card__label { color: var(--muted); font-size: .68rem; margin: 0 0 .1rem; }
+    .ag-stat-card__num { font-size: 1.15rem; font-weight: 700; margin: 0; color: var(--text); }
+    .ag-stat-card--warn .ag-stat-card__num { color: #f59e0b; }
+    .ag-stat-card--danger .ag-stat-card__num { color: #d94060; }
 
     .ag-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.2rem; align-items: center; justify-content: space-between; }
     .ag-filtros { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
     .ag-filtro { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted); font-size: .72rem; padding: .35rem .8rem; border-radius: 20px; cursor: pointer; }
     .ag-filtro.activo { border-width: 1px; }
-    .ag-acciones-top { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .ag-acciones-top { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
 
     .ag-lista { display: flex; flex-direction: column; gap: .6rem; }
     .ag-item { display: flex; align-items: flex-start; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: var(--radius); padding: .9rem 1.1rem; }
@@ -45,7 +60,7 @@
     .ag-item__fecha--vencido { color: #d94060; }
     .ag-item__fecha--por-vencer { color: #f59e0b; }
     .ag-item__fecha--ok { color: var(--muted); }
-    .ag-item__pago { display: inline-block; margin-left: .5rem; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 10px; }
+    .ag-item__pago { display: inline-block; margin-left: .5rem; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 10px; cursor: pointer; }
     .ag-item__pago--pagado { background: rgba(78,204,163,.15); color: #4ecca3; }
     .ag-item__pago--pendiente { background: rgba(217,64,96,.12); color: #d94060; }
     .ag-item__acciones { display: flex; gap: .35rem; flex-shrink: 0; }
@@ -53,9 +68,6 @@
     .ag-item__btn:hover { color: var(--cyan); border-color: var(--cyan-mid); }
     .ag-item__btn--check.activo { color: #4ecca3; border-color: #4ecca355; }
     .ag-empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 3rem 1rem; }
-
-    .ag-noauth { text-align: center; color: var(--muted); padding: 4rem 1rem; }
-    .ag-noauth h2 { color: var(--cyan); font-family: var(--font-head); margin-bottom: .8rem; }
 
     .ag-tipo-select { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .ag-tipo-btn { padding: .5rem .8rem; border-radius: 8px; border: 2px solid var(--border); background: transparent; color: var(--muted); font-size: .78rem; font-weight: 600; cursor: pointer; }
@@ -71,15 +83,14 @@
     .ag-cal-nav__mes { font-family: var(--font-head); color: var(--cyan); font-size: .95rem; letter-spacing: .03em; text-transform: capitalize; }
     .ag-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
     .ag-cal-dow { text-align: center; font-size: .65rem; color: var(--muted); font-weight: 700; padding-bottom: .3rem; }
-    .ag-cal-day { min-height: 76px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; }
+    .ag-cal-day { min-height: 76px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; cursor: pointer; }
     .ag-cal-day--fuera { opacity: .3; }
     .ag-cal-day--hoy { border-color: var(--cyan-mid); }
+    .ag-cal-day--seleccionado { border-color: var(--cyan) !important; box-shadow: 0 0 0 1px var(--cyan); }
     .ag-cal-day__num { font-size: .68rem; color: var(--muted); font-weight: 700; }
     .ag-cal-chip { font-size: .6rem; padding: .12rem .35rem; border-radius: 5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
     .ag-cal-chip--entregado { opacity: .5; text-decoration: line-through; }
     .ag-cal-mas { font-size: .58rem; color: var(--muted); padding-left: .2rem; }
-    .ag-cal-day { cursor: pointer; }
-    .ag-cal-day--seleccionado { border-color: var(--cyan) !important; box-shadow: 0 0 0 1px var(--cyan); }
     .ag-cal-dot-wrap { display: none; flex-wrap: wrap; gap: 2px; }
     .ag-cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .ag-cal-detalle { margin-top: 1rem; display: flex; flex-direction: column; gap: .5rem; }
@@ -92,16 +103,16 @@
     .ag-tipo-row__pago { font-size: .62rem; color: var(--muted); }
 
     /* ═══ MOBILE ═══ */
-    @media (max-width: 640px) {
-      .ag-header { padding: 1rem 1.1rem; }
-      .ag-header__brand { font-size: .82rem; }
-      .ag-header__brand img { width: 26px; height: 26px; }
-      .ag-volver { font-size: .72rem; }
-      .ag-main { padding: 1.3rem .9rem 3rem; }
-      .ag-intro { flex-direction: column; align-items: flex-start; }
-      .ag-intro h1 { font-size: 1.15rem; }
-      .ag-vista-toggle { width: 100%; }
-      .ag-vista-btn { flex: 1; }
+    @media (max-width: 860px) {
+      .ag-shell { flex-direction: column; }
+      .ag-sidebar { width: 100%; height: auto; position: static; flex-direction: row; align-items: center; padding: .8rem 1rem; gap: 1rem; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .ag-sidebar__brand { padding: 0; flex-shrink: 0; }
+      .ag-sidebar__nav { flex-direction: row; flex: 0; }
+      .ag-nav-item { flex-shrink: 0; white-space: nowrap; padding: .5rem .7rem; }
+      .ag-sidebar__footer { border: none; padding: 0; margin: 0; }
+      .ag-main { padding: 1.2rem .9rem 3rem; }
+      .ag-topbar h1 { font-size: 1.1rem; }
+      .ag-stats { grid-template-columns: 1fr 1fr; }
 
       .ag-toolbar { flex-direction: column; align-items: stretch; }
       .ag-filtros { overflow-x: auto; flex-wrap: nowrap; padding-bottom: .3rem; -webkit-overflow-scrolling: touch; }
@@ -115,7 +126,6 @@
       .ag-item__acciones { width: 100%; justify-content: flex-end; margin-top: .3rem; }
       .ag-item__titulo { font-size: .84rem; }
 
-      /* Calendario: celdas más chicas, texto de los chips oculto — solo puntitos de color */
       .ag-cal-day { min-height: 42px; padding: .25rem; gap: .15rem; }
       .ag-cal-chip { display: none; }
       .ag-cal-mas { display: none; }
@@ -130,68 +140,82 @@
 </head>
 <body>
 
-  <header class="ag-header">
-    <a href="../index.html" class="ag-header__brand">
-      <img src="../favicon.svg" alt=""/>
-      LA MADRIGUERA
-    </a>
-    <a href="../index.html" class="ag-volver">← Volver al sitio</a>
-  </header>
+  <div class="ag-shell">
+    <aside class="ag-sidebar">
+      <div class="ag-sidebar__brand">
+        <img src="../favicon.svg" alt=""/>
+        LA MADRIGUERA
+      </div>
+      <nav class="ag-sidebar__nav" id="agVistaToggle">
+        <button class="ag-nav-item activo" data-vista="lista">📋 Lista</button>
+        <button class="ag-nav-item" data-vista="calendario">📅 Calendario</button>
+        <button class="ag-nav-item" id="agBtnTipos">⚙ Tipos de entrada</button>
+        <button class="ag-nav-item" id="agBtnNotif">🔔 Notificaciones</button>
+        <a class="ag-nav-item" id="agBtnIcs" href="#" target="_blank">📅 Suscribirme (celular)</a>
+        <button class="ag-nav-item" id="agBtnCopiarIcs">📋 Copiar link (compu)</button>
+      </nav>
+      <div class="ag-sidebar__footer">
+        <a href="../index.html" class="ag-nav-item">← Volver al sitio</a>
+      </div>
+    </aside>
 
-  <main class="ag-main">
+    <main class="ag-main">
 
-    <div id="agNoAuth" class="ag-noauth" style="display:none">
-      <h2>🔒 Acceso restringido</h2>
-      <p>Esta página es solo para el administrador. Iniciá sesión desde el sitio principal con tu cuenta de admin y volvé a entrar acá.</p>
-    </div>
+      <div id="agNoAuth" class="ag-noauth" style="display:none">
+        <h2>🔒 Acceso restringido</h2>
+        <p>Esta página es solo para el administrador. Iniciá sesión desde el sitio principal con tu cuenta de admin y volvé a entrar acá.</p>
+      </div>
 
-    <div id="agContenido" style="display:none">
-      <div class="ag-intro">
-        <h1>📋 Mi Agenda</h1>
-        <div class="ag-vista-toggle" id="agVistaToggle">
-          <button class="ag-vista-btn activo" data-vista="lista">📋 Lista</button>
-          <button class="ag-vista-btn" data-vista="calendario">📅 Calendario</button>
+      <div id="agContenido" style="display:none">
+        <div class="ag-topbar">
+          <h1>📋 Mi Agenda</h1>
+          <button class="btn btn--primary btn--sm" id="agBtnNuevo">+ Nueva entrada</button>
+        </div>
+
+        <div class="ag-stats">
+          <div class="ag-stat-card">
+            <span class="ag-stat-card__icon">📋</span>
+            <div><p class="ag-stat-card__label">Pendientes</p><p class="ag-stat-card__num" id="agStatPendientes">0</p></div>
+          </div>
+          <div class="ag-stat-card ag-stat-card--warn" id="agBannerPorVencer">
+            <span class="ag-stat-card__icon">⏰</span>
+            <div><p class="ag-stat-card__label">Por vencer</p><p class="ag-stat-card__num" id="agStatPorVencer">0</p></div>
+          </div>
+          <div class="ag-stat-card ag-stat-card--danger" id="agBannerVencidos">
+            <span class="ag-stat-card__icon">⚠</span>
+            <div><p class="ag-stat-card__label">Vencidos</p><p class="ag-stat-card__num" id="agStatVencidos">0</p></div>
+          </div>
+        </div>
+
+        <div class="ag-toolbar">
+          <div class="ag-filtros" id="agFiltros">
+            <button class="ag-filtro activo" data-tipo="todos">Todos</button>
+            <!-- filtros por tipo se agregan acá dinámicamente -->
+            <label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted);margin-left:.3rem">
+              <input type="checkbox" id="agVerEntregados"/> ver entregados
+            </label>
+          </div>
+        </div>
+
+        <!-- VISTA LISTA -->
+        <div id="agVistaLista">
+          <div class="ag-lista" id="agLista"></div>
+          <p class="ag-empty" id="agEmpty" style="display:none">No hay nada cargado todavía. Sumá tu primer pendiente.</p>
+        </div>
+
+        <!-- VISTA CALENDARIO -->
+        <div id="agVistaCalendario" style="display:none">
+          <div class="ag-cal-nav">
+            <button class="ag-cal-nav__btn" id="agCalPrev">←</button>
+            <p class="ag-cal-nav__mes" id="agCalMes"></p>
+            <button class="ag-cal-nav__btn" id="agCalNext">→</button>
+          </div>
+          <div class="ag-cal-grid" id="agCalGrid"></div>
+          <div class="ag-cal-detalle" id="agCalDetalle" style="display:none"></div>
         </div>
       </div>
-
-      <div class="ag-banner" id="agBannerVencidos"></div>
-      <div class="ag-banner" id="agBannerPorVencer"></div>
-
-      <div class="ag-toolbar">
-        <div class="ag-filtros" id="agFiltros">
-          <button class="ag-filtro activo" data-tipo="todos">Todos</button>
-          <!-- filtros por tipo se agregan acá dinámicamente -->
-          <label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted);margin-left:.3rem">
-            <input type="checkbox" id="agVerEntregados"/> ver entregados
-          </label>
-        </div>
-      </div>
-
-      <div class="ag-acciones-top" style="margin-bottom:1.2rem">
-        <button class="btn btn--primary btn--sm" id="agBtnNuevo">+ Nueva entrada</button>
-        <button class="btn btn--sm" id="agBtnTipos">⚙ Tipos de entrada</button>
-        <button class="btn btn--sm" id="agBtnNotif">🔔 Activar notificaciones</button>
-        <a class="btn btn--sm" id="agBtnIcs" href="#" target="_blank" style="text-decoration:none">📅 Suscribirme en Google/Apple Calendar</a>
-      </div>
-
-      <!-- VISTA LISTA -->
-      <div id="agVistaLista">
-        <div class="ag-lista" id="agLista"></div>
-        <p class="ag-empty" id="agEmpty" style="display:none">No hay nada cargado todavía. Sumá tu primer pendiente.</p>
-      </div>
-
-      <!-- VISTA CALENDARIO -->
-      <div id="agVistaCalendario" style="display:none">
-        <div class="ag-cal-nav">
-          <button class="ag-cal-nav__btn" id="agCalPrev">←</button>
-          <p class="ag-cal-nav__mes" id="agCalMes"></p>
-          <button class="ag-cal-nav__btn" id="agCalNext">→</button>
-        </div>
-        <div class="ag-cal-grid" id="agCalGrid"></div>
-        <div class="ag-cal-detalle" id="agCalDetalle" style="display:none"></div>
-      </div>
-    </div>
-  </main>
+    </main>
+  </div>
 
   <!-- MODAL: nueva/editar entrada -->
   <div class="modal-overlay" id="agModal">

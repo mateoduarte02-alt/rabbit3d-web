@@ -199,18 +199,9 @@
     const vencidos = pendientes.filter(i => diasHasta(i.fecha_limite) < 0)
     const porVencer = pendientes.filter(i => { const d = diasHasta(i.fecha_limite); return d >= 0 && d <= DIAS_ALERTA })
 
-    const bVenc = document.getElementById('agBannerVencidos')
-    const bPorV = document.getElementById('agBannerPorVencer')
-    if (vencidos.length) {
-      bVenc.className = 'ag-banner ag-banner--danger'
-      bVenc.style.display = 'block'
-      bVenc.textContent = `⚠ Tenés ${vencidos.length} ${vencidos.length===1?'entrada vencida':'entradas vencidas'} sin marcar como entregada.`
-    } else { bVenc.style.display = 'none' }
-    if (porVencer.length) {
-      bPorV.className = 'ag-banner ag-banner--warn'
-      bPorV.style.display = 'block'
-      bPorV.textContent = `⏰ Tenés ${porVencer.length} ${porVencer.length===1?'entrada que vence':'entradas que vencen'} en los próximos ${DIAS_ALERTA} días.`
-    } else { bPorV.style.display = 'none' }
+    document.getElementById('agStatPendientes').textContent = pendientes.length
+    document.getElementById('agStatVencidos').textContent = vencidos.length
+    document.getElementById('agStatPorVencer').textContent = porVencer.length
 
     dispararNotificaciones(vencidos, porVencer)
   }
@@ -231,7 +222,7 @@
       let claseItem = '', claseFecha = 'ag-item__fecha--ok', textoFecha
       if (!entregado && dias < 0)      { claseItem = 'ag-item--vencido';    claseFecha = 'ag-item__fecha--vencido';   textoFecha = `Venció hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}` }
       else if (!entregado && dias <= DIAS_ALERTA) { claseItem = 'ag-item--por-vencer'; claseFecha = 'ag-item__fecha--por-vencer'; textoFecha = dias===0?'Vence hoy':`Vence en ${dias} día${dias===1?'':'s'}` }
-      else { textoFecha = formatearFecha(i.fecha_limite) }
+      else { textoFecha = entregado ? formatearFecha(i.fecha_limite) : `${formatearFecha(i.fecha_limite)} · faltan ${dias} día${dias===1?'':'s'}` }
       if (entregado) claseItem += ' ag-item--entregado'
 
       const pagoTag = t.requiere_pago
@@ -278,9 +269,9 @@
   //  VISTA: toggle lista / calendario
   // ══════════════════════════════════════════
   document.getElementById('agVistaToggle').addEventListener('click', e => {
-    const btn = e.target.closest('.ag-vista-btn')
+    const btn = e.target.closest('[data-vista]')
     if (!btn) return
-    document.querySelectorAll('.ag-vista-btn').forEach(b => b.classList.remove('activo'))
+    document.querySelectorAll('#agVistaToggle [data-vista]').forEach(b => b.classList.remove('activo'))
     btn.classList.add('activo')
     vistaActual = btn.dataset.vista
     document.getElementById('agVistaLista').style.display = vistaActual === 'lista' ? 'block' : 'none'
@@ -479,6 +470,17 @@
   //  SUSCRIPCIÓN A GOOGLE/APPLE CALENDAR (.ics vía Edge Function)
   // ══════════════════════════════════════════
   document.getElementById('agBtnIcs').href = AGENDA_ICS_URL.replace(/^https?:/, 'webcal:')
+
+  document.getElementById('agBtnCopiarIcs').addEventListener('click', async () => {
+    const btn = document.getElementById('agBtnCopiarIcs')
+    try {
+      await navigator.clipboard.writeText(AGENDA_ICS_URL)
+      btn.textContent = '✓ Copiado — pegalo en Google Calendar → Otros calendarios → Desde URL'
+      setTimeout(() => { btn.textContent = '📋 Copiar link (compu)' }, 4000)
+    } catch (e) {
+      prompt('Copiá este link manualmente:', AGENDA_ICS_URL)
+    }
+  })
 
   // ══════════════════════════════════════════
   //  INIT
