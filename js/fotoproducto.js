@@ -279,8 +279,10 @@
             if (rem !== null) k.credits = parseInt(rem)
             k.usos = (k.usos || 0) + 1
             window._rembgKeyActivo = idx
+            console.log('[fotoproducto] remove.bg OK — guardando uso. key:', k.nombre, 'usos previos:', k.usos, 'credits header:', rem)
             try {
               const upd = await supabase.from('media').update({ url: k.key+'|'+(k.credits ?? '')+'|'+k.usos }).eq('id', k.id)
+              console.log('[fotoproducto] resultado del update:', upd)
               if (upd.error) console.error('rembg: el update de créditos/usos devolvió error', upd.error, k)
             } catch(e) { console.error('rembg: excepción al guardar créditos/usos', e, k) }
             if (esAdmin && k.credits !== null && k.credits <= 5) _alertaCreditosBajos(k, idx)
