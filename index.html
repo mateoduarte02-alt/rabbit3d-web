@@ -127,7 +127,7 @@
         <a href="#catalogo" class="nav__link">Catálogo Rabbit3D</a>
         <a href="#herramientas" class="nav__link">Laboratorio 3D</a>
         <a href="#emprendedores" class="nav__link">Área de Emprendedores</a>
-        <a href="#makers" class="nav__link">Comunidad</a>
+        <a href="#makers" class="nav__link" id="navLinkMakers">Comunidad</a>
         <a href="#youtube" class="nav__link">Videos</a>
         <button class="nav__icon-btn" id="btnFavoritos" title="Favoritos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -577,6 +577,14 @@
       <div class="form-group">
         <label class="form-label">TikTok (link completo)</label>
         <input type="text" id="perfilTiktok" class="form-input" placeholder="https://tiktok.com/@tuusuario"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Diseños (texto libre, ej: "430")</label>
+        <input type="text" id="perfilStatDisenos" class="form-input" placeholder="Se autocalcula si lo dejás vacío"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descargas (texto libre, ej: "39,6k")</label>
+        <input type="text" id="perfilStatDescargas" class="form-input" placeholder="39,6k"/>
       </div>
       <p class="form-error" id="perfilError"></p>
       <button class="btn btn--primary btn--full" id="btnGuardarPerfil">Guardar perfil</button>
@@ -2411,7 +2419,7 @@
             <span class="stat__label">Diseños</span>
           </div>
           <div class="stat">
-            <span class="stat__num">39,6k</span>
+            <span class="stat__num" id="statDescargasVista">39,6k</span>
             <span class="stat__label">Descargas</span>
           </div>
         </div>
@@ -2435,7 +2443,7 @@
   </section>
 
   <footer class="footer">
-    <p>© 2025 <strong>La Madriguera</strong> · Diseños para impresión 3D · General Pico, La Pampa</p>
+    <p>© 2025 <strong>La Madriguera</strong> · Diseños para impresión 3D · General Pico, La Pampa · <a href="patrocinadores.html" style="color:inherit;opacity:.55;text-decoration:none">Alianzas</a></p>
   </footer>
 
   <!-- MODAL CULTS3D -->
@@ -2658,6 +2666,10 @@
       <button class="btn btn--sm" onclick="abrirGestorMantenimiento()">🔧 Mantenimiento</button>
       <button class="btn btn--sm" onclick="abrirConfigMotorRembg()">🖼 Motor fondo</button>
 
+      <!-- Personal -->
+      <div style="font-size:.52rem;font-weight:700;letter-spacing:.12em;color:var(--cyan);text-transform:uppercase;padding:.4rem .2rem .3rem;opacity:.7;border-top:1px solid rgba(255,255,255,.06);margin-top:.2rem">Personal</div>
+      <a class="btn btn--sm" href="agenda/agenda.html" style="text-decoration:none;display:block;text-align:center">📋 Mi Agenda</a>
+
     </div>
   </div>
 
@@ -2680,6 +2692,12 @@
       <div>
         <p style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);margin:.5rem 0 .5rem;opacity:.8">💼 Área de emprendedores</p>
         <div id="mantListaEmpr" style="display:flex;flex-direction:column;gap:.4rem"></div>
+      </div>
+      <!-- Secciones de la página -->
+      <div>
+        <p style="font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);margin:.5rem 0 .5rem;opacity:.8">📄 Secciones de la página</p>
+        <p style="font-size:.68rem;color:var(--muted);margin:0 0 .5rem">Ocultá secciones completas del sitio (no aparecen para usuarios; vos las seguís viendo con una etiqueta).</p>
+        <div id="mantListaSecciones" style="display:flex;flex-direction:column;gap:.4rem"></div>
       </div>
     </div>
   </div>
