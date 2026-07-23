@@ -25,7 +25,8 @@
     .ag-sidebar-overlay { display: none; }
 
     /* ── Main ── */
-    .ag-main { flex: 1; min-width: 0; padding: 1.8rem 2.2rem 3rem; max-width: 900px; }
+    .ag-main { flex: 1; min-width: 0; padding: 1.8rem 2.2rem 3rem; }
+    #agContenido { max-width: 900px; margin: 0 auto; }
     .ag-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; flex-wrap: wrap; gap: .8rem; }
     .ag-topbar h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.25rem; letter-spacing: .04em; margin: 0; }
 
@@ -49,7 +50,7 @@
     .ag-filtro.activo { border-width: 1px; }
     .ag-acciones-top { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
 
-    .ag-lista { display: flex; flex-direction: column; gap: .6rem; }
+    .ag-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: .6rem; align-items: start; }
     .ag-item { display: flex; align-items: flex-start; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: var(--radius); padding: .9rem 1.1rem; }
     .ag-item--vencido { border-left-color: #d94060 !important; }
     .ag-item--por-vencer { border-left-color: #f59e0b !important; }
