@@ -105,6 +105,91 @@
     .ag-tipo-row__nombre { flex: 1; font-size: .82rem; color: var(--text); }
     .ag-tipo-row__pago { font-size: .62rem; color: var(--muted); }
 
+    /* Carpetas de notas */
+    .ag-carpetas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .8rem; align-items: start; }
+    .ag-carpeta-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem; cursor: pointer; border-top: 4px solid var(--border); transition: border-color .15s; }
+    .ag-carpeta-card:hover { border-color: var(--cyan-mid); }
+    .ag-carpeta-card__nombre { color: var(--text); font-weight: 700; font-size: .9rem; margin: 0 0 .7rem; display: flex; align-items: center; gap: .5rem; }
+    .ag-carpeta-card__vacia { color: var(--muted); font-size: .74rem; margin: 0; font-style: italic; }
+    .ag-carpeta-card__items { display: flex; flex-direction: column; gap: .35rem; }
+    .ag-carpeta-card__item { display: flex; align-items: center; gap: .5rem; }
+    .ag-carpeta-card__item .ag-nota-item__texto { font-size: .78rem; }
+    .ag-carpeta-card__item .ag-postit__del { color: var(--muted); font-size: .72rem; opacity: .5; }
+    .ag-carpeta-card__item .ag-postit__del:hover { opacity: 1; color: #d94060; }
+    .ag-nota-item__check--mini { width: 18px; height: 18px; font-size: .6rem; }
+    .ag-carpeta-volver { background: none; border: none; color: var(--cyan); font-size: .82rem; cursor: pointer; padding: 0; margin-bottom: 1rem; font-family: inherit; }
+    .ag-carpeta-detalle__head { display: flex; align-items: center; gap: .6rem; margin-bottom: 1.2rem; }
+    .ag-carpeta-detalle__color { width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0; }
+    .ag-carpeta-detalle__nombre { font-family: var(--font-head); color: var(--text); font-size: 1.1rem; margin: 0; flex: 1; }
+    .ag-nota-add { display: flex; gap: .5rem; margin-bottom: 1.1rem; }
+    .ag-nota-add .form-input { flex: 1; }
+    .ag-notas-lista { display: flex; flex-direction: column; gap: .5rem; }
+    .ag-nota-item { display: flex; align-items: center; gap: .7rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .9rem; }
+    .ag-nota-item__check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); background: none; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: transparent; font-size: .7rem; }
+    .ag-nota-item__check.hecho { background: #4ecca3; border-color: #4ecca3; color: #06251c; }
+    .ag-nota-item__texto { flex: 1; color: var(--text); font-size: .85rem; }
+    .ag-nota-item__texto.hecho { text-decoration: line-through; color: var(--muted); }
+    .ag-nota-item__del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .85rem; flex-shrink: 0; }
+    .ag-nota-item__del:hover { color: #d94060; }
+
+    /* Corcho de notas rápidas (post-its) */
+    .ag-section-label { font-family: var(--font-head); font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); margin: 0; opacity: .85; }
+    .ag-corcho-wrap { margin-bottom: 1.6rem; }
+    .ag-corcho {
+      background: #6b4a35;
+      background-image:
+        radial-gradient(circle at 15% 25%, rgba(0,0,0,.12) 0, transparent 3%),
+        radial-gradient(circle at 60% 70%, rgba(0,0,0,.12) 0, transparent 3%),
+        radial-gradient(circle at 85% 35%, rgba(0,0,0,.1) 0, transparent 3%),
+        radial-gradient(circle at 35% 85%, rgba(0,0,0,.1) 0, transparent 3%),
+        radial-gradient(circle at 90% 90%, rgba(0,0,0,.1) 0, transparent 3%);
+      border-radius: var(--radius);
+      border: 6px solid #4a3223;
+      padding: 1.3rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.1rem;
+      min-height: 140px;
+      align-content: flex-start;
+    }
+    .ag-postit {
+      width: 130px;
+      min-height: 110px;
+      padding: .9rem .8rem .6rem;
+      font-size: .76rem;
+      line-height: 1.35;
+      color: #2b2410;
+      font-family: 'Comic Sans MS', 'Segoe Print', cursive, sans-serif;
+      box-shadow: 2px 4px 10px rgba(0,0,0,.35);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      word-break: break-word;
+      transition: transform .15s;
+    }
+    .ag-postit:hover { transform: scale(1.05) rotate(0deg) !important; z-index: 5; }
+    .ag-postit::before {
+      content: '📌';
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1.1rem;
+      filter: drop-shadow(1px 2px 2px rgba(0,0,0,.4));
+    }
+    .ag-postit__texto { flex: 1; margin: 0; }
+    .ag-postit__del { align-self: flex-end; background: none; border: none; color: rgba(0,0,0,.35); cursor: pointer; font-size: .8rem; padding: .2rem; margin-top: .3rem; }
+    .ag-postit__del:hover { color: rgba(0,0,0,.7); }
+    .ag-corcho-add {
+      width: 130px; min-height: 110px; border: 2px dashed rgba(255,255,255,.35); border-radius: 4px;
+      background: none; color: rgba(255,255,255,.6); font-size: 1.6rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ag-corcho-add:hover { border-color: rgba(255,255,255,.6); color: #fff; }
+    .ag-color-swatches { display: flex; gap: .5rem; }
+    .ag-swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+    .ag-swatch.activo { border-color: var(--cyan); }
+
     /* ═══ MOBILE ═══ */
     @media (max-width: 860px) {
       .ag-shell { flex-direction: column; }
@@ -149,6 +234,7 @@
       .ag-tipo-select { gap: .4rem; }
       .ag-tipo-btn { padding: .45rem .65rem; font-size: .72rem; }
       .ag-pago-toggle { flex-direction: column; }
+      .ag-postit, .ag-corcho-add { width: 100px; min-height: 90px; font-size: .7rem; }
     }
   </style>
 </head>
@@ -168,6 +254,7 @@
       <nav class="ag-sidebar__nav" id="agVistaToggle">
         <button class="ag-nav-item activo" data-vista="lista">📋 Lista</button>
         <button class="ag-nav-item" data-vista="calendario">📅 Calendario</button>
+        <button class="ag-nav-item" data-vista="carpetas">📝 Notas</button>
         <button class="ag-nav-item" id="agBtnTipos">⚙ Tipos de entrada</button>
         <button class="ag-nav-item" id="agBtnNotif">🔔 Notificaciones</button>
         <a class="ag-nav-item" id="agBtnIcs" href="#" target="_blank">📅 Suscribirme (celular)</a>
@@ -232,6 +319,42 @@
           <div class="ag-cal-grid" id="agCalGrid"></div>
           <div class="ag-cal-detalle" id="agCalDetalle" style="display:none"></div>
         </div>
+
+        <!-- VISTA CARPETAS (notas rápidas, sin fecha) -->
+        <div id="agVistaCarpetas" style="display:none">
+
+          <!-- Corcho de notas rápidas tipo post-it -->
+          <div class="ag-corcho-wrap">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+              <p class="ag-section-label">📌 Notas rápidas</p>
+            </div>
+            <div class="ag-corcho" id="agCorcho"></div>
+          </div>
+
+          <div id="agCarpetasGrid-wrap">
+            <div class="ag-toolbar" style="justify-content:flex-end">
+              <button class="btn btn--primary btn--sm" id="agBtnNuevaCarpeta">+ Nueva carpeta</button>
+            </div>
+            <div class="ag-carpetas-grid" id="agCarpetasGrid"></div>
+            <p class="ag-empty" id="agCarpetasEmpty" style="display:none">Todavía no creaste ninguna carpeta.</p>
+          </div>
+
+          <div id="agCarpetaDetalle" style="display:none">
+            <button class="ag-carpeta-volver" id="agBtnVolverCarpetas">← Volver a las carpetas</button>
+            <div class="ag-carpeta-detalle__head">
+              <span class="ag-carpeta-detalle__color" id="agCarpetaDetColor"></span>
+              <h2 class="ag-carpeta-detalle__nombre" id="agCarpetaDetNombre"></h2>
+              <button class="ag-item__btn" id="agBtnEditarCarpeta" title="Editar carpeta">✎</button>
+              <button class="ag-item__btn" id="agBtnEliminarCarpeta" title="Eliminar carpeta">🗑</button>
+            </div>
+            <div class="ag-nota-add">
+              <input type="text" id="agNuevaNotaInput" class="form-input" placeholder="Agregar algo a esta lista..."/>
+              <button class="btn btn--primary btn--sm" id="agBtnAgregarNota">Agregar</button>
+            </div>
+            <div class="ag-notas-lista" id="agNotasLista"></div>
+            <p class="ag-empty" id="agNotasEmpty" style="display:none">Esta lista está vacía.</p>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -295,6 +418,50 @@
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarTipo">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionTipo" style="display:none">Cancelar edición</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: nueva/editar carpeta -->
+  <div class="modal-overlay" id="agModalCarpeta">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalCarpeta">✕</button>
+      <h2 class="modal__title" id="agModalCarpetaTitulo">Nueva carpeta</h2>
+      <input type="hidden" id="agCarpetaId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agCarpetaNombre" class="form-input" placeholder="Ej: Compras, Hogar, Supermercado..."/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <input type="color" id="agCarpetaColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+      </div>
+      <p class="form-error" id="agCarpetaError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardarCarpeta">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: nueva nota rápida (post-it) -->
+  <div class="modal-overlay" id="agModalNotaRapida">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalNotaRapida">✕</button>
+      <h2 class="modal__title">Nueva nota</h2>
+      <div class="form-group">
+        <label class="form-label">Texto</label>
+        <textarea id="agNotaRapidaTexto" class="form-input form-textarea" placeholder="Ej: Escribirle a la abuela" maxlength="140"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <div class="ag-color-swatches" id="agNotaRapidaColores">
+          <button type="button" class="ag-swatch activo" data-color="#f5e06a" style="background:#f5e06a"></button>
+          <button type="button" class="ag-swatch" data-color="#f5a3c0" style="background:#f5a3c0"></button>
+          <button type="button" class="ag-swatch" data-color="#a3d9f5" style="background:#a3d9f5"></button>
+          <button type="button" class="ag-swatch" data-color="#b0f5a3" style="background:#b0f5a3"></button>
+          <button type="button" class="ag-swatch" data-color="#e0c4f5" style="background:#e0c4f5"></button>
+          <button type="button" class="ag-swatch" data-color="#f5c48a" style="background:#f5c48a"></button>
+        </div>
+      </div>
+      <p class="form-error" id="agNotaRapidaError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardarNotaRapida">Clavar en el corcho 📌</button>
     </div>
   </div>
 

@@ -287,7 +287,9 @@
     vistaActual = btn.dataset.vista
     document.getElementById('agVistaLista').style.display = vistaActual === 'lista' ? 'block' : 'none'
     document.getElementById('agVistaCalendario').style.display = vistaActual === 'calendario' ? 'block' : 'none'
+    document.getElementById('agVistaCarpetas').style.display = vistaActual === 'carpetas' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
+    if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -492,6 +494,222 @@
       prompt('Copiá este link manualmente:', AGENDA_ICS_URL)
     }
   })
+
+  // ══════════════════════════════════════════
+  //  CARPETAS DE NOTAS (listas rápidas sin fecha)
+  // ══════════════════════════════════════════
+  let carpetas = []
+  let carpetaActualId = null
+
+  async function cargarCarpetas() {
+    const { data, error } = await supabase.from('agenda_carpetas').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[agenda] error al cargar carpetas:', error); return }
+    carpetas = data || []
+    renderCarpetasGrid()
+  }
+
+  async function renderCarpetasGrid() {
+    document.getElementById('agCarpetaDetalle').style.display = 'none'
+    document.getElementById('agCarpetasGrid-wrap').style.display = 'block'
+    carpetaActualId = null
+
+    const grid = document.getElementById('agCarpetasGrid')
+    const empty = document.getElementById('agCarpetasEmpty')
+    if (!carpetas.length) { grid.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+
+    // Traer las notas reales de todas las carpetas (no solo el conteo)
+    const { data: notasData } = await supabase.from('agenda_notas').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    const porCarpeta = {}
+    ;(notasData || []).forEach(n => { (porCarpeta[n.carpeta_id] = porCarpeta[n.carpeta_id] || []).push(n) })
+
+    grid.innerHTML = carpetas.map(c => {
+      const notas = porCarpeta[c.id] || []
+      const itemsHtml = notas.length
+        ? notas.map(n => `
+            <div class="ag-carpeta-card__item" onclick="event.stopPropagation()">
+              <button class="ag-nota-item__check ag-nota-item__check--mini ${n.hecho?'hecho':''}" onclick="window._agToggleNotaGrid(${n.id}, ${c.id})">✓</button>
+              <span class="ag-nota-item__texto ${n.hecho?'hecho':''}">${n.texto}</span>
+              <button class="ag-postit__del" onclick="window._agEliminarNotaGrid(${n.id}, ${c.id})">🗑</button>
+            </div>`).join('')
+        : `<p class="ag-carpeta-card__vacia">Vacía</p>`
+      return `<div class="ag-carpeta-card" style="border-top-color:${c.color}" onclick="window._agAbrirCarpeta(${c.id})">
+        <p class="ag-carpeta-card__nombre"><span style="width:10px;height:10px;border-radius:3px;background:${c.color};display:inline-block;flex-shrink:0"></span> ${c.nombre}</p>
+        <div class="ag-carpeta-card__items">${itemsHtml}</div>
+      </div>`
+    }).join('')
+  }
+
+  window._agToggleNotaGrid = async function (notaId, carpetaId) {
+    const { data } = await supabase.from('agenda_notas').select('hecho').eq('id', notaId).limit(1)
+    const actual = data?.[0]?.hecho || false
+    await supabase.from('agenda_notas').update({ hecho: !actual }).eq('id', notaId)
+    await renderCarpetasGrid()
+  }
+
+  window._agEliminarNotaGrid = async function (notaId, carpetaId) {
+    await supabase.from('agenda_notas').delete().eq('id', notaId)
+    await renderCarpetasGrid()
+  }
+
+  document.getElementById('agBtnNuevaCarpeta').addEventListener('click', () => window._agAbrirModalCarpeta(null))
+
+  window._agAbrirModalCarpeta = function (id) {
+    const c = id ? carpetas.find(x => x.id === id) : null
+    document.getElementById('agModalCarpetaTitulo').textContent = c ? 'Editar carpeta' : 'Nueva carpeta'
+    document.getElementById('agCarpetaId').value = c ? c.id : ''
+    document.getElementById('agCarpetaNombre').value = c ? c.nombre : ''
+    document.getElementById('agCarpetaColor').value = c ? c.color : '#159A9C'
+    document.getElementById('agCarpetaError').textContent = ''
+    document.getElementById('agModalCarpeta').classList.add('activo')
+  }
+  document.getElementById('agBtnCerrarModalCarpeta').addEventListener('click', () => document.getElementById('agModalCarpeta').classList.remove('activo'))
+
+  document.getElementById('agBtnGuardarCarpeta').addEventListener('click', async () => {
+    const errEl = document.getElementById('agCarpetaError')
+    const id = document.getElementById('agCarpetaId').value
+    const datos = {
+      nombre: document.getElementById('agCarpetaNombre').value.trim(),
+      color: document.getElementById('agCarpetaColor').value,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('agenda_carpetas').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('agenda_carpetas').insert([{ ...datos, orden: carpetas.length + 1 }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalCarpeta').classList.remove('activo')
+    await cargarCarpetas()
+    if (id && carpetaActualId === Number(id)) window._agAbrirCarpeta(Number(id))
+  })
+
+  window._agAbrirCarpeta = async function (id) {
+    carpetaActualId = id
+    const c = carpetas.find(x => x.id === id)
+    if (!c) return
+    document.getElementById('agCarpetasGrid-wrap').style.display = 'none'
+    document.getElementById('agCarpetaDetalle').style.display = 'block'
+    document.getElementById('agCarpetaDetColor').style.background = c.color
+    document.getElementById('agCarpetaDetNombre').textContent = c.nombre
+    document.getElementById('agNuevaNotaInput').value = ''
+    await cargarNotas(id)
+  }
+
+  document.getElementById('agBtnVolverCarpetas').addEventListener('click', renderCarpetasGrid)
+  document.getElementById('agBtnEditarCarpeta').addEventListener('click', () => window._agAbrirModalCarpeta(carpetaActualId))
+  document.getElementById('agBtnEliminarCarpeta').addEventListener('click', async () => {
+    if (!confirm('¿Eliminar esta carpeta y todo lo que tiene adentro?')) return
+    const { error } = await supabase.from('agenda_carpetas').delete().eq('id', carpetaActualId)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarCarpetas()
+  })
+
+  async function cargarNotas(carpetaId) {
+    const { data, error } = await supabase.from('agenda_notas').select('*').eq('carpeta_id', carpetaId).order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[agenda] error al cargar notas:', error); return }
+    renderNotas(data || [])
+  }
+
+  function renderNotas(notas) {
+    const lista = document.getElementById('agNotasLista')
+    const empty = document.getElementById('agNotasEmpty')
+    if (!notas.length) { lista.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+    lista.innerHTML = notas.map(n => `
+      <div class="ag-nota-item">
+        <button class="ag-nota-item__check ${n.hecho?'hecho':''}" onclick="window._agToggleNota(${n.id})">✓</button>
+        <span class="ag-nota-item__texto ${n.hecho?'hecho':''}">${n.texto}</span>
+        <button class="ag-nota-item__del" onclick="window._agEliminarNota(${n.id})">🗑</button>
+      </div>
+    `).join('')
+  }
+
+  async function agregarNota() {
+    const input = document.getElementById('agNuevaNotaInput')
+    const texto = input.value.trim()
+    if (!texto || !carpetaActualId) return
+    const { error } = await supabase.from('agenda_notas').insert([{ carpeta_id: carpetaActualId, texto }])
+    if (error) { alert('Error: ' + error.message); return }
+    input.value = ''
+    await cargarNotas(carpetaActualId)
+    await cargarCarpetas() // refrescar conteos (queda oculto detrás, se recalcula al volver)
+    document.getElementById('agCarpetasGrid-wrap').style.display = 'none'
+    document.getElementById('agCarpetaDetalle').style.display = 'block'
+  }
+  document.getElementById('agBtnAgregarNota').addEventListener('click', agregarNota)
+  document.getElementById('agNuevaNotaInput').addEventListener('keydown', e => { if (e.key === 'Enter') agregarNota() })
+
+  window._agToggleNota = async function (id) {
+    // buscar estado actual releyendo del DOM sería frágil — releemos la nota puntual
+    const { data } = await supabase.from('agenda_notas').select('hecho').eq('id', id).limit(1)
+    const actual = data?.[0]?.hecho || false
+    const { error } = await supabase.from('agenda_notas').update({ hecho: !actual }).eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarNotas(carpetaActualId)
+  }
+
+  window._agEliminarNota = async function (id) {
+    const { error } = await supabase.from('agenda_notas').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarNotas(carpetaActualId)
+  }
+
+  // ══════════════════════════════════════════
+  //  NOTAS RÁPIDAS (corcho tipo post-it)
+  // ══════════════════════════════════════════
+  async function cargarCorcho() {
+    const { data, error } = await supabase.from('agenda_notas_rapidas').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[agenda] error al cargar corcho:', error); return }
+    renderCorcho(data || [])
+  }
+
+  function renderCorcho(notas) {
+    const cont = document.getElementById('agCorcho')
+    const tiles = notas.map(n => `
+      <div class="ag-postit" style="background:${n.color};transform:rotate(${n.rotacion}deg)">
+        <p class="ag-postit__texto">${n.texto}</p>
+        <button class="ag-postit__del" onclick="window._agEliminarNotaRapida(${n.id})">🗑</button>
+      </div>
+    `).join('')
+    cont.innerHTML = tiles + `<button class="ag-corcho-add" id="agBtnNuevaNotaRapida">+</button>`
+    document.getElementById('agBtnNuevaNotaRapida').addEventListener('click', abrirModalNotaRapida)
+  }
+
+  function abrirModalNotaRapida() {
+    document.getElementById('agNotaRapidaTexto').value = ''
+    document.getElementById('agNotaRapidaError').textContent = ''
+    document.querySelectorAll('#agNotaRapidaColores .ag-swatch').forEach((b,i) => b.classList.toggle('activo', i === 0))
+    document.getElementById('agModalNotaRapida').classList.add('activo')
+  }
+  document.getElementById('agBtnCerrarModalNotaRapida').addEventListener('click', () => document.getElementById('agModalNotaRapida').classList.remove('activo'))
+
+  document.getElementById('agNotaRapidaColores').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-swatch')
+    if (!btn) return
+    document.querySelectorAll('#agNotaRapidaColores .ag-swatch').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+  })
+
+  document.getElementById('agBtnGuardarNotaRapida').addEventListener('click', async () => {
+    const errEl = document.getElementById('agNotaRapidaError')
+    const texto = document.getElementById('agNotaRapidaTexto').value.trim()
+    if (!texto) { errEl.textContent = 'Escribí algo primero.'; return }
+    const colorBtn = document.querySelector('#agNotaRapidaColores .ag-swatch.activo')
+    const color = colorBtn ? colorBtn.dataset.color : '#f5e06a'
+    const rotacion = Math.floor(Math.random() * 11) - 5 // -5° a +5°, look "clavado" prolijo pero no perfecto
+    const { error } = await supabase.from('agenda_notas_rapidas').insert([{ texto, color, rotacion }])
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalNotaRapida').classList.remove('activo')
+    await cargarCorcho()
+  })
+
+  window._agEliminarNotaRapida = async function (id) {
+    const { error } = await supabase.from('agenda_notas_rapidas').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarCorcho()
+  }
 
   // ══════════════════════════════════════════
   //  INIT
