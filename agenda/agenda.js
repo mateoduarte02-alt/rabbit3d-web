@@ -216,6 +216,7 @@
     empty.style.display = 'none'
 
     lista.innerHTML = visibles.map(i => {
+      try {
       const t = tipoDe(i.tipo_id) || { icono: '📌', color: '#8fa8b2', nombre: '', requiere_pago: false }
       const dias = diasHasta(i.fecha_limite)
       const entregado = i.estado === 'entregado'
@@ -243,6 +244,10 @@
           <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminar(${i.id})">🗑</button>
         </div>
       </div>`
+      } catch (e) {
+        console.error('[agenda] error renderizando entrada', i, e)
+        return `<div class="ag-item"><div class="ag-item__body"><p class="ag-item__titulo">${i.titulo || '(sin título)'}</p><p class="ag-item__desc">⚠ Error al mostrar esta entrada</p></div></div>`
+      }
     }).join('')
   }
 
