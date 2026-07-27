@@ -191,6 +191,38 @@
     .ag-swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
     .ag-swatch.activo { border-color: var(--cyan); }
 
+
+    /* Finanzas */
+    .ag-fin-periodo { display: flex; gap: .4rem; }
+    .ag-fin-periodo__btn { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted); font-size: .74rem; font-weight: 600; padding: .4rem .9rem; border-radius: 20px; cursor: pointer; }
+    .ag-fin-periodo__btn.activo { background: var(--cyan-dim); border-color: var(--cyan-mid); color: var(--cyan); }
+    .ag-fin-pie-toggle { display: flex; gap: .3rem; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 8px; padding: .2rem; }
+    .ag-fin-pie-toggle__btn { background: none; border: none; color: var(--muted); font-size: .7rem; font-weight: 600; padding: .3rem .6rem; border-radius: 6px; cursor: pointer; }
+    .ag-fin-pie-toggle__btn.activo { background: var(--cyan-dim); color: var(--cyan); }
+    .ag-fin-grid { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 1.2rem; align-items: start; margin-top: 1.2rem; }
+    .ag-fin-pie-card, .ag-fin-lista-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; }
+    .ag-fin-pie-wrap { display: flex; justify-content: center; }
+    .ag-fin-pie { width: 170px; height: 170px; border-radius: 50%; flex-shrink: 0; }
+    .ag-fin-leyenda { display: flex; flex-direction: column; gap: .4rem; margin-top: 1.1rem; }
+    .ag-fin-leyenda__fila { display: flex; align-items: center; gap: .5rem; font-size: .76rem; color: var(--text); }
+    .ag-fin-leyenda__dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .ag-fin-leyenda__pct { color: var(--muted); margin-left: auto; }
+    .ag-fin-movs { display: flex; flex-direction: column; gap: .5rem; max-height: 480px; overflow-y: auto; }
+    .ag-fin-mov { display: flex; align-items: center; gap: .7rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; }
+    .ag-fin-mov__icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .9rem; flex-shrink: 0; }
+    .ag-fin-mov__body { flex: 1; min-width: 0; }
+    .ag-fin-mov__cat { font-size: .8rem; color: var(--text); font-weight: 700; margin: 0; }
+    .ag-fin-mov__desc { font-size: .7rem; color: var(--muted); margin: .1rem 0 0; }
+    .ag-fin-mov__monto { font-size: .85rem; font-weight: 700; white-space: nowrap; }
+    .ag-fin-mov__monto--ingreso { color: #4ecca3; }
+    .ag-fin-mov__monto--gasto { color: #d94060; }
+    .ag-fin-mov__abril { font-size: .64rem; color: #ec4899; margin: .15rem 0 0; cursor: pointer; }
+    .ag-fin-mov__acciones { display: flex; gap: .3rem; flex-shrink: 0; }
+
+    @media (max-width: 980px) {
+      .ag-fin-grid { grid-template-columns: 1fr; }
+    }
+
     /* ═══ MOBILE ═══ */
     @media (max-width: 860px) {
       .ag-shell { flex-direction: column; }
@@ -257,10 +289,8 @@
         <button class="ag-nav-item activo" data-vista="lista">📋 Lista</button>
         <button class="ag-nav-item" data-vista="calendario">📅 Calendario</button>
         <button class="ag-nav-item" data-vista="carpetas">📝 Notas</button>
-        <button class="ag-nav-item" id="agBtnTipos">⚙ Tipos de entrada</button>
-        <button class="ag-nav-item" id="agBtnNotif">🔔 Notificaciones</button>
-        <a class="ag-nav-item" id="agBtnIcs" href="#" target="_blank">📅 Suscribirme (celular)</a>
-        <button class="ag-nav-item" id="agBtnCopiarIcs">📋 Copiar link (compu)</button>
+        <button class="ag-nav-item" data-vista="finanzas">💰 Finanzas</button>
+        <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
         <a href="../index.html" class="ag-nav-item">← Volver al sitio</a>
@@ -275,6 +305,7 @@
       </div>
 
       <div id="agContenido" style="display:none">
+        <div id="agHeaderEntradas">
         <div class="ag-topbar">
           <h1>📋 Mi Agenda</h1>
           <button class="btn btn--primary btn--sm" id="agBtnNuevo">+ Nueva entrada</button>
@@ -303,6 +334,8 @@
               <input type="checkbox" id="agVerEntregados"/> ver entregados
             </label>
           </div>
+          <button class="btn btn--sm" id="agBtnTipos" style="flex-shrink:0">⚙ Tipos</button>
+        </div>
         </div>
 
         <!-- VISTA LISTA -->
@@ -355,6 +388,60 @@
             </div>
             <div class="ag-notas-lista" id="agNotasLista"></div>
             <p class="ag-empty" id="agNotasEmpty" style="display:none">Esta lista está vacía.</p>
+          </div>
+        </div>
+
+        <!-- VISTA FINANZAS -->
+        <div id="agVistaFinanzas" style="display:none">
+          <div class="ag-fin-periodo" id="agFinPeriodo">
+            <button class="ag-fin-periodo__btn activo" data-periodo="mes">Este mes</button>
+            <button class="ag-fin-periodo__btn" data-periodo="anio">Este año</button>
+            <button class="ag-fin-periodo__btn" data-periodo="todo">Todo</button>
+          </div>
+
+          <div class="ag-stats" style="margin-top:1rem">
+            <div class="ag-stat-card">
+              <span class="ag-stat-card__icon">💚</span>
+              <div><p class="ag-stat-card__label">Ingresos</p><p class="ag-stat-card__num" id="agFinIngresos">$0</p></div>
+            </div>
+            <div class="ag-stat-card ag-stat-card--danger">
+              <span class="ag-stat-card__icon">💸</span>
+              <div><p class="ag-stat-card__label">Gastos</p><p class="ag-stat-card__num" id="agFinGastos">$0</p></div>
+            </div>
+            <div class="ag-stat-card" id="agFinBalanceCard">
+              <span class="ag-stat-card__icon">⚖️</span>
+              <div><p class="ag-stat-card__label">Balance</p><p class="ag-stat-card__num" id="agFinBalance">$0</p></div>
+            </div>
+          </div>
+
+          <div class="ag-fin-grid">
+            <div class="ag-fin-pie-card">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                <p class="ag-section-label" id="agFinPieLabel">Gastos por categoría</p>
+                <div class="ag-fin-pie-toggle" id="agFinPieToggle">
+                  <button class="ag-fin-pie-toggle__btn activo" data-nat="gasto">💸 Gastos</button>
+                  <button class="ag-fin-pie-toggle__btn" data-nat="ingreso">💚 Ingresos</button>
+                </div>
+              </div>
+              <div class="ag-fin-pie-wrap">
+                <div class="ag-fin-pie" id="agFinPie"></div>
+                <p class="ag-empty" id="agFinPieEmpty" style="display:none;padding:1rem 0">Sin movimientos en este período.</p>
+              </div>
+              <div class="ag-fin-leyenda" id="agFinLeyenda"></div>
+            </div>
+
+            <div class="ag-fin-lista-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;gap:.5rem">
+                <p class="ag-section-label">Movimientos</p>
+                <div style="display:flex;gap:.5rem">
+                  <button class="btn btn--sm" id="agBtnCategorias">⚙ Categorías</button>
+                  <button class="btn btn--sm" id="agBtnBilleteras">💳 Billeteras</button>
+                  <button class="btn btn--primary btn--sm" id="agBtnNuevoMov">+ Nuevo</button>
+                </div>
+              </div>
+              <div class="ag-fin-movs" id="agFinMovs"></div>
+              <p class="ag-empty" id="agFinMovsEmpty" style="display:none">Nada cargado en este período.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -464,6 +551,119 @@
       </div>
       <p class="form-error" id="agNotaRapidaError"></p>
       <button class="btn btn--primary btn--full" id="agBtnGuardarNotaRapida">Clavar en el corcho 📌</button>
+    </div>
+  </div>
+
+  <!-- MODAL: nuevo/editar movimiento financiero -->
+  <div class="modal-overlay" id="agModalMov">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalMov">✕</button>
+      <h2 class="modal__title" id="agModalMovTitulo">Nuevo movimiento</h2>
+      <input type="hidden" id="agMovId"/>
+      <div class="ag-pago-toggle" style="display:flex;margin-bottom:1rem" id="agMovNaturaleza">
+        <button type="button" class="ag-pago-btn activo-pagado" data-nat="ingreso">💚 Ingreso</button>
+        <button type="button" class="ag-pago-btn" data-nat="gasto">💸 Gasto</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría</label>
+        <div class="ag-tipo-select" id="agMovCategoriaSelect"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Monto</label>
+        <input type="number" id="agMovMonto" class="form-input" placeholder="0" min="0" step="0.01"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción (opcional)</label>
+        <input type="text" id="agMovDesc" class="form-input" placeholder="Ej: Fideos y salsa"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Billetera / banco</label>
+        <div class="ag-tipo-select" id="agMovBilleteraSelect"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha</label>
+        <input type="date" id="agMovFecha" class="form-input"/>
+      </div>
+      <div class="form-group" id="agMovReembolsoWrap" style="display:none">
+        <label class="form-label">¿Es Abril devolviéndote un gasto? (opcional)</label>
+        <select id="agMovReembolsoSelect" class="form-input">
+          <option value="">No, es un ingreso normal</option>
+        </select>
+      </div>
+      <p class="form-error" id="agMovError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardarMov">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de categorías de finanzas -->
+  <div class="modal-overlay" id="agModalCategorias">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalCategorias">✕</button>
+      <h2 class="modal__title">Categorías de finanzas</h2>
+      <div id="agCategoriasLista" style="margin-bottom:1.3rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar categoría nueva</p>
+      <input type="hidden" id="agCategoriaEditId"/>
+      <div class="ag-pago-toggle" style="display:flex;margin-bottom:1rem" id="agCategoriaNaturaleza">
+        <button type="button" class="ag-pago-btn activo-pagado" data-nat="ingreso">💚 Ingreso</button>
+        <button type="button" class="ag-pago-btn" data-nat="gasto">💸 Gasto</button>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="agCategoriaNombre" class="form-input" placeholder="Ej: Nafta"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agCategoriaColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <p class="form-error" id="agCategoriaError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoria">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionCategoria" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de billeteras/bancos -->
+  <div class="modal-overlay" id="agModalBilleteras">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalBilleteras">✕</button>
+      <h2 class="modal__title">Billeteras / bancos</h2>
+      <div id="agBilleterasLista" style="margin-bottom:1.3rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar billetera nueva</p>
+      <input type="hidden" id="agBilleteraEditId"/>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="agBilleteraNombre" class="form-input" placeholder="Ej: Efectivo"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agBilleteraColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <p class="form-error" id="agBilleteraError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarBilletera">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionBilletera" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: recordatorios (notificaciones + suscripción a calendario) -->
+  <div class="modal-overlay" id="agModalRecordatorios">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalRecordatorios">✕</button>
+      <h2 class="modal__title">Recordatorios</h2>
+      <p style="font-size:.8rem;color:var(--muted);margin:0 0 1.2rem">Elegí cómo querés que te avisen cuando algo esté por vencer.</p>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <button class="btn btn--full" id="agBtnNotif">🔔 Activar notificaciones del navegador</button>
+        <a class="btn btn--full" id="agBtnIcs" href="#" target="_blank" style="text-decoration:none;text-align:center">📅 Suscribirme desde el celular</a>
+        <button class="btn btn--full" id="agBtnCopiarIcs">📋 Copiar link para la compu</button>
+      </div>
     </div>
   </div>
 

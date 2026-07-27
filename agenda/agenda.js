@@ -284,17 +284,23 @@
   overlayEl.addEventListener('click', cerrarDrawer)
   sidebarEl.addEventListener('click', e => { if (e.target.closest('.ag-nav-item')) cerrarDrawer() })
 
+  document.getElementById('agBtnRecordatorios').addEventListener('click', () => document.getElementById('agModalRecordatorios').classList.add('activo'))
+  document.getElementById('agBtnCerrarModalRecordatorios').addEventListener('click', () => document.getElementById('agModalRecordatorios').classList.remove('activo'))
+
   document.getElementById('agVistaToggle').addEventListener('click', e => {
     const btn = e.target.closest('[data-vista]')
     if (!btn) return
     document.querySelectorAll('#agVistaToggle [data-vista]').forEach(b => b.classList.remove('activo'))
     btn.classList.add('activo')
     vistaActual = btn.dataset.vista
+    document.getElementById('agHeaderEntradas').style.display = (vistaActual === 'lista' || vistaActual === 'calendario') ? 'block' : 'none'
     document.getElementById('agVistaLista').style.display = vistaActual === 'lista' ? 'block' : 'none'
     document.getElementById('agVistaCalendario').style.display = vistaActual === 'calendario' ? 'block' : 'none'
     document.getElementById('agVistaCarpetas').style.display = vistaActual === 'carpetas' ? 'block' : 'none'
+    document.getElementById('agVistaFinanzas').style.display = vistaActual === 'finanzas' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
+    if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -715,6 +721,439 @@
     if (error) { alert('Error: ' + error.message); return }
     await cargarCorcho()
   }
+
+  // ══════════════════════════════════════════
+  //  FINANZAS (ingresos/gastos, categorías, reembolsos)
+  // ══════════════════════════════════════════
+  let categorias = []
+  let billeteras = []
+  let movimientos = []
+  let periodoActual = 'mes'
+  let pieNaturaleza = 'gasto'
+  let movModalNaturaleza = 'ingreso'
+
+  function fmtMonto(n) {
+    return '$' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+  }
+
+  function rangoPeriodo(periodo) {
+    const hoy = new Date()
+    if (periodo === 'mes') {
+      const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+      return { desde: desde.toISOString().slice(0,10), hasta: hoyISO() }
+    }
+    if (periodo === 'anio') {
+      const desde = new Date(hoy.getFullYear(), 0, 1)
+      return { desde: desde.toISOString().slice(0,10), hasta: hoyISO() }
+    }
+    return { desde: '1900-01-01', hasta: '2999-12-31' }
+  }
+
+  async function cargarCategoriasFin() {
+    const { data, error } = await supabase.from('finanzas_categorias').select('*').order('naturaleza').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[agenda] error al cargar categorías fin:', error); return }
+    categorias = data || []
+  }
+
+  async function cargarBilleterasFin() {
+    const { data, error } = await supabase.from('finanzas_billeteras').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[agenda] error al cargar billeteras:', error); return }
+    billeteras = data || []
+  }
+
+  document.getElementById('agFinPeriodo').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('.ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    periodoActual = btn.dataset.periodo
+    cargarFinanzas()
+  })
+
+  async function cargarFinanzas() {
+    const { desde, hasta } = rangoPeriodo(periodoActual)
+    const { data, error } = await supabase.from('finanzas_movimientos').select('*')
+      .gte('fecha', desde).lte('fecha', hasta).order('fecha', { ascending: false }).order('id', { ascending: false })
+    if (error) { console.error('[agenda] error al cargar movimientos:', error); return }
+    movimientos = data || []
+    renderFinStats()
+    renderFinPie()
+    await renderFinMovs()
+  }
+
+  function renderFinStats() {
+    const ingresos = movimientos.filter(m => m.naturaleza === 'ingreso').reduce((a,m) => a + Number(m.monto), 0)
+    const gastos = movimientos.filter(m => m.naturaleza === 'gasto').reduce((a,m) => a + Number(m.monto), 0)
+    const balance = ingresos - gastos
+    document.getElementById('agFinIngresos').textContent = fmtMonto(ingresos)
+    document.getElementById('agFinGastos').textContent = fmtMonto(gastos)
+    document.getElementById('agFinBalance').textContent = fmtMonto(balance)
+    const card = document.getElementById('agFinBalanceCard')
+    card.className = 'ag-stat-card' + (balance < 0 ? ' ag-stat-card--danger' : '')
+    document.getElementById('agFinBalance').style.color = balance < 0 ? '#d94060' : '#4ecca3'
+  }
+
+  document.getElementById('agFinPieToggle').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-pie-toggle__btn')
+    if (!btn) return
+    document.querySelectorAll('.ag-fin-pie-toggle__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    pieNaturaleza = btn.dataset.nat
+    document.getElementById('agFinPieLabel').textContent = pieNaturaleza === 'gasto' ? 'Gastos por categoría' : 'Ingresos por categoría'
+    renderFinPie()
+  })
+
+  function renderFinPie() {
+
+    const gastos = movimientos.filter(m => m.naturaleza === pieNaturaleza)
+    const porCat = {}
+    gastos.forEach(m => { porCat[m.categoria_id] = (porCat[m.categoria_id] || 0) + Number(m.monto) })
+    const total = Object.values(porCat).reduce((a,b) => a+b, 0)
+    const pie = document.getElementById('agFinPie')
+    const empty = document.getElementById('agFinPieEmpty')
+    const leyenda = document.getElementById('agFinLeyenda')
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      empty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    empty.style.display = 'none'
+
+    let acumulado = 0
+    const stops = []
+    const filas = Object.entries(porCat)
+      .sort((a,b) => b[1]-a[1])
+      .map(([catId, monto]) => {
+        const c = categorias.find(x => x.id == catId) || { nombre: 'Sin categoría', color: '#607080' }
+        const pct = (monto / total) * 100
+        stops.push(`${c.color} ${acumulado}% ${acumulado+pct}%`)
+        acumulado += pct
+        return { nombre: c.nombre, color: c.color, monto, pct }
+      })
+
+    pie.style.background = `conic-gradient(${stops.join(', ')})`
+    leyenda.innerHTML = filas.map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.nombre} · ${fmtMonto(f.monto)}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
+  async function renderFinMovs() {
+    const cont = document.getElementById('agFinMovs')
+    const empty = document.getElementById('agFinMovsEmpty')
+    if (!movimientos.length) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+
+    // Los gastos reembolsados pueden ser de otro período — buscamos los que falten
+    const idsFaltantes = [...new Set(movimientos.filter(m => m.gasto_relacionado_id && !movimientos.some(x => x.id === m.gasto_relacionado_id)).map(m => m.gasto_relacionado_id))]
+    let gastosRelacionados = {}
+    if (idsFaltantes.length) {
+      const { data } = await supabase.from('finanzas_movimientos').select('id, descripcion, categoria_id').in('id', idsFaltantes)
+      ;(data || []).forEach(g => { gastosRelacionados[g.id] = g })
+    }
+    movimientos.forEach(m => { if (m.gasto_relacionado_id) gastosRelacionados[m.id] = gastosRelacionados[m.id] || m })
+
+    cont.innerHTML = movimientos.map(m => {
+      const c = categorias.find(x => x.id === m.categoria_id) || { nombre: 'Sin categoría', color: '#607080' }
+      const bil = billeteras.find(x => x.id === m.billetera_id)
+      const esIngreso = m.naturaleza === 'ingreso'
+      let reembolsoHtml = ''
+      if (esIngreso && m.gasto_relacionado_id) {
+        const g = movimientos.find(x => x.id === m.gasto_relacionado_id) || gastosRelacionados[m.gasto_relacionado_id]
+        const gc = g ? (categorias.find(x => x.id === g.categoria_id) || {}).nombre : null
+        reembolsoHtml = `<p class="ag-fin-mov__abril">💗 Reembolso de: ${g ? (g.descripcion || gc || 'gasto') : 'un gasto'}</p>`
+      }
+      return `<div class="ag-fin-mov">
+        <span class="ag-fin-mov__icon" style="background:${c.color}33">${esIngreso?'💚':'💸'}</span>
+        <div class="ag-fin-mov__body">
+          <p class="ag-fin-mov__cat">${c.nombre} <span style="color:var(--muted);font-weight:400">· ${formatearFecha(m.fecha)}${bil ? ' · '+bil.nombre : ''}</span></p>
+          ${m.descripcion ? `<p class="ag-fin-mov__desc">${m.descripcion}</p>` : ''}
+          ${reembolsoHtml}
+        </div>
+        <span class="ag-fin-mov__monto ${esIngreso?'ag-fin-mov__monto--ingreso':'ag-fin-mov__monto--gasto'}">${esIngreso?'+':'-'}${fmtMonto(m.monto)}</span>
+        <div class="ag-fin-mov__acciones">
+          <button class="ag-item__btn" title="Editar" onclick="window._agAbrirModalMov(${m.id})">✎</button>
+          <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarMov(${m.id})">🗑</button>
+        </div>
+      </div>`
+    }).join('')
+  }
+
+  // ── Modal nuevo/editar movimiento ──
+  document.getElementById('agBtnNuevoMov').addEventListener('click', () => window._agAbrirModalMov(null))
+
+  document.getElementById('agMovNaturaleza').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-pago-btn')
+    if (!btn) return
+    movModalNaturaleza = btn.dataset.nat
+    document.querySelectorAll('#agMovNaturaleza .ag-pago-btn').forEach(b => b.classList.remove('activo-pagado','activo-pendiente'))
+    btn.classList.add(movModalNaturaleza === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
+    document.getElementById('agMovReembolsoWrap').style.display = movModalNaturaleza === 'ingreso' ? 'block' : 'none'
+    if (movModalNaturaleza === 'ingreso') poblarSelectReembolso()
+    renderMovCategoriaSelect(null)
+  })
+
+  let movModalCategoriaId = null
+  function renderMovCategoriaSelect(seleccionarId) {
+    const cont = document.getElementById('agMovCategoriaSelect')
+    const filtradas = categorias.filter(c => c.naturaleza === movModalNaturaleza)
+    movModalCategoriaId = seleccionarId || (filtradas[0] ? filtradas[0].id : null)
+    cont.innerHTML = filtradas.map(c => `<button type="button" class="ag-tipo-btn ${c.id===movModalCategoriaId?'activo':''}" data-cat-id="${c.id}" style="${c.id===movModalCategoriaId?'border-color:'+c.color+';background:'+c.color+'22;color:'+c.color:''}">${c.nombre}</button>`).join('')
+      || '<p style="color:var(--muted);font-size:.76rem">No hay categorías de este tipo — creá una en "⚙ Categorías".</p>'
+  }
+  document.getElementById('agMovCategoriaSelect').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-tipo-btn')
+    if (!btn) return
+    movModalCategoriaId = Number(btn.dataset.catId)
+    renderMovCategoriaSelect(movModalCategoriaId)
+  })
+
+  let movModalBilleteraId = null
+  function renderMovBilleteraSelect(seleccionarId) {
+    const cont = document.getElementById('agMovBilleteraSelect')
+    movModalBilleteraId = seleccionarId || (billeteras[0] ? billeteras[0].id : null)
+    cont.innerHTML = billeteras.map(b => `<button type="button" class="ag-tipo-btn ${b.id===movModalBilleteraId?'activo':''}" data-bil-id="${b.id}" style="${b.id===movModalBilleteraId?'border-color:'+b.color+';background:'+b.color+'22;color:'+b.color:''}">${b.nombre}</button>`).join('')
+      || '<p style="color:var(--muted);font-size:.76rem">No hay billeteras cargadas — creá una en "💳 Billeteras".</p>'
+  }
+  document.getElementById('agMovBilleteraSelect').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-tipo-btn')
+    if (!btn) return
+    movModalBilleteraId = Number(btn.dataset.bilId)
+    renderMovBilleteraSelect(movModalBilleteraId)
+  })
+
+  window._agAbrirModalMov = async function (id) {
+    const m = id ? movimientos.find(x => x.id === id) : null
+    document.getElementById('agModalMovTitulo').textContent = m ? 'Editar movimiento' : 'Nuevo movimiento'
+    document.getElementById('agMovId').value = m ? m.id : ''
+    movModalNaturaleza = m ? m.naturaleza : 'ingreso'
+    document.querySelectorAll('#agMovNaturaleza .ag-pago-btn').forEach(b => {
+      b.classList.remove('activo-pagado','activo-pendiente')
+      if (b.dataset.nat === movModalNaturaleza) b.classList.add(movModalNaturaleza === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
+    })
+    document.getElementById('agMovReembolsoWrap').style.display = movModalNaturaleza === 'ingreso' ? 'block' : 'none'
+    renderMovCategoriaSelect(m ? m.categoria_id : null)
+    renderMovBilleteraSelect(m ? m.billetera_id : null)
+    document.getElementById('agMovMonto').value = m ? m.monto : ''
+    document.getElementById('agMovDesc').value = m ? (m.descripcion || '') : ''
+    document.getElementById('agMovFecha').value = m ? m.fecha : hoyISO()
+    if (movModalNaturaleza === 'ingreso') await poblarSelectReembolso(m ? m.gasto_relacionado_id : null)
+    document.getElementById('agMovError').textContent = ''
+    document.getElementById('agModalMov').classList.add('activo')
+  }
+  document.getElementById('agBtnCerrarModalMov').addEventListener('click', () => document.getElementById('agModalMov').classList.remove('activo'))
+
+  async function poblarSelectReembolso(seleccionarId) {
+    const sel = document.getElementById('agMovReembolsoSelect')
+    const { data } = await supabase.from('finanzas_movimientos').select('id, monto, descripcion, categoria_id, fecha')
+      .eq('naturaleza', 'gasto').order('fecha', { ascending: false }).order('id', { ascending: false }).limit(60)
+    sel.innerHTML = '<option value="">No, es un ingreso normal</option>' + (data || []).map(g => {
+      const c = categorias.find(x => x.id === g.categoria_id)
+      const label = `${formatearFecha(g.fecha)} · ${c ? c.nombre : 'Sin categoría'} · ${g.descripcion || 'sin descripción'} · ${fmtMonto(g.monto)}`
+      return `<option value="${g.id}" ${seleccionarId===g.id?'selected':''}>${label}</option>`
+    }).join('')
+  }
+
+  document.getElementById('agBtnGuardarMov').addEventListener('click', async () => {
+    const errEl = document.getElementById('agMovError')
+    const id = document.getElementById('agMovId').value
+    const monto = parseFloat(document.getElementById('agMovMonto').value)
+    if (!movModalCategoriaId) { errEl.textContent = 'Elegí una categoría.'; return }
+    if (!monto || monto <= 0) { errEl.textContent = 'Ingresá un monto válido.'; return }
+    const datos = {
+      categoria_id: movModalCategoriaId,
+      billetera_id: movModalBilleteraId,
+      naturaleza: movModalNaturaleza,
+      monto,
+      descripcion: document.getElementById('agMovDesc').value.trim(),
+      fecha: document.getElementById('agMovFecha').value || hoyISO(),
+      monto_a_cobrar: null,
+      monto_cobrado: 0,
+      gasto_relacionado_id: (movModalNaturaleza === 'ingreso' && document.getElementById('agMovReembolsoSelect').value)
+        ? Number(document.getElementById('agMovReembolsoSelect').value) : null,
+    }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('finanzas_movimientos').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('finanzas_movimientos').insert([{ ...datos, monto_cobrado: 0 }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalMov').classList.remove('activo')
+    await cargarFinanzas()
+  })
+
+  window._agEliminarMov = async function (id) {
+    if (!confirm('¿Eliminar este movimiento?')) return
+    const { error } = await supabase.from('finanzas_movimientos').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarFinanzas()
+  }
+
+  // ── Gestor de billeteras/bancos ──
+  document.getElementById('agBtnBilleteras').addEventListener('click', () => {
+    renderBilleterasLista()
+    resetFormBilletera()
+    document.getElementById('agModalBilleteras').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalBilleteras').addEventListener('click', () => document.getElementById('agModalBilleteras').classList.remove('activo'))
+
+  function renderBilleterasLista() {
+    const cont = document.getElementById('agBilleterasLista')
+    if (!billeteras.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:.78rem">Todavía no hay billeteras.</p>'; return }
+    cont.innerHTML = billeteras.map(b => `
+      <div class="ag-tipo-row">
+        <div class="ag-tipo-row__color" style="background:${b.color}"></div>
+        <span class="ag-tipo-row__nombre">${b.nombre}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarBilletera(${b.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarBilletera(${b.id})">🗑</button>
+      </div>`).join('')
+  }
+
+  function resetFormBilletera() {
+    document.getElementById('agBilleteraEditId').value = ''
+    document.getElementById('agBilleteraNombre').value = ''
+    document.getElementById('agBilleteraColor').value = '#159A9C'
+    document.getElementById('agBilleteraError').textContent = ''
+    document.getElementById('agBtnGuardarBilletera').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionBilletera').style.display = 'none'
+  }
+
+  window._agEditarBilletera = function (id) {
+    const b = billeteras.find(x => x.id === id)
+    if (!b) return
+    document.getElementById('agBilleteraEditId').value = b.id
+    document.getElementById('agBilleteraNombre').value = b.nombre
+    document.getElementById('agBilleteraColor').value = b.color
+    document.getElementById('agBtnGuardarBilletera').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionBilletera').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionBilletera').addEventListener('click', resetFormBilletera)
+
+  window._agEliminarBilletera = async function (id) {
+    if (!confirm('¿Eliminar esta billetera? Los movimientos que ya la usan no se borran, solo quedan sin billetera.')) return
+    const { error } = await supabase.from('finanzas_billeteras').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarBilleterasFin()
+    renderBilleterasLista()
+    await cargarFinanzas()
+  }
+
+  document.getElementById('agBtnGuardarBilletera').addEventListener('click', async () => {
+    const errEl = document.getElementById('agBilleteraError')
+    const id = document.getElementById('agBilleteraEditId').value
+    const datos = {
+      nombre: document.getElementById('agBilleteraNombre').value.trim(),
+      color: document.getElementById('agBilleteraColor').value,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('finanzas_billeteras').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('finanzas_billeteras').insert([{ ...datos, orden: billeteras.length + 1 }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarBilleterasFin()
+    renderBilleterasLista()
+    resetFormBilletera()
+    await cargarFinanzas()
+  })
+
+  // ── Gestor de categorías de finanzas ──
+  let categoriaFinNaturalezaForm = 'ingreso'
+  document.getElementById('agBtnCategorias').addEventListener('click', () => {
+    renderCategoriasFinLista()
+    resetFormCategoriaFin()
+    document.getElementById('agModalCategorias').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalCategorias').addEventListener('click', () => document.getElementById('agModalCategorias').classList.remove('activo'))
+
+  document.getElementById('agCategoriaNaturaleza').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-pago-btn')
+    if (!btn) return
+    categoriaFinNaturalezaForm = btn.dataset.nat
+    document.querySelectorAll('#agCategoriaNaturaleza .ag-pago-btn').forEach(b => b.classList.remove('activo-pagado','activo-pendiente'))
+    btn.classList.add(categoriaFinNaturalezaForm === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
+  })
+
+  function renderCategoriasFinLista() {
+    const cont = document.getElementById('agCategoriasLista')
+    if (!categorias.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:.78rem">Todavía no hay categorías.</p>'; return }
+    cont.innerHTML = ['ingreso','gasto'].map(nat => {
+      const filtradas = categorias.filter(c => c.naturaleza === nat)
+      if (!filtradas.length) return ''
+      return `<p style="font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:.8rem 0 .4rem">${nat==='ingreso'?'💚 Ingresos':'💸 Gastos'}</p>` +
+        filtradas.map(c => `
+          <div class="ag-tipo-row">
+            <div class="ag-tipo-row__color" style="background:${c.color}"></div>
+            <span class="ag-tipo-row__nombre">${c.nombre}</span>
+            <button class="ag-item__btn" title="Editar" onclick="window._agEditarCategoriaFin(${c.id})">✎</button>
+            <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarCategoriaFin(${c.id})">🗑</button>
+          </div>`).join('')
+    }).join('')
+  }
+
+  function resetFormCategoriaFin() {
+    document.getElementById('agCategoriaEditId').value = ''
+    document.getElementById('agCategoriaNombre').value = ''
+    document.getElementById('agCategoriaColor').value = '#159A9C'
+    document.getElementById('agCategoriaError').textContent = ''
+    document.getElementById('agBtnGuardarCategoria').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionCategoria').style.display = 'none'
+  }
+
+  window._agEditarCategoriaFin = function (id) {
+    const c = categorias.find(x => x.id === id)
+    if (!c) return
+    document.getElementById('agCategoriaEditId').value = c.id
+    document.getElementById('agCategoriaNombre').value = c.nombre
+    document.getElementById('agCategoriaColor').value = c.color
+    categoriaFinNaturalezaForm = c.naturaleza
+    document.querySelectorAll('#agCategoriaNaturaleza .ag-pago-btn').forEach(b => {
+      b.classList.remove('activo-pagado','activo-pendiente')
+      if (b.dataset.nat === c.naturaleza) b.classList.add(c.naturaleza === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
+    })
+    document.getElementById('agBtnGuardarCategoria').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionCategoria').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionCategoria').addEventListener('click', resetFormCategoriaFin)
+
+  window._agEliminarCategoriaFin = async function (id) {
+    if (!confirm('¿Eliminar esta categoría? Los movimientos que ya la usan no se borran, pero quedan sin categoría.')) return
+    const { error } = await supabase.from('finanzas_categorias').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarCategoriasFin()
+    renderCategoriasFinLista()
+    await cargarFinanzas()
+  }
+
+  document.getElementById('agBtnGuardarCategoria').addEventListener('click', async () => {
+    const errEl = document.getElementById('agCategoriaError')
+    const id = document.getElementById('agCategoriaEditId').value
+    const datos = {
+      nombre: document.getElementById('agCategoriaNombre').value.trim(),
+      color: document.getElementById('agCategoriaColor').value,
+      naturaleza: categoriaFinNaturalezaForm,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('finanzas_categorias').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('finanzas_categorias').insert([{ ...datos, orden: categorias.length + 1 }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarCategoriasFin()
+    renderCategoriasFinLista()
+    resetFormCategoriaFin()
+    await cargarFinanzas()
+  })
 
   // ══════════════════════════════════════════
   //  INIT
