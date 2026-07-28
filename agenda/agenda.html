@@ -204,9 +204,13 @@
     .ag-fin-pie-wrap { display: flex; justify-content: center; }
     .ag-fin-pie { width: 170px; height: 170px; border-radius: 50%; flex-shrink: 0; }
     .ag-fin-leyenda { display: flex; flex-direction: column; gap: .4rem; margin-top: 1.1rem; }
-    .ag-fin-leyenda__fila { display: flex; align-items: center; gap: .5rem; font-size: .76rem; color: var(--text); }
+    .ag-fin-leyenda__fila { display: flex; align-items: center; gap: .5rem; font-size: .76rem; color: var(--text); cursor: pointer; padding: .3rem .4rem; border-radius: 6px; }
+    .ag-fin-leyenda__fila:hover { background: rgba(255,255,255,.05); }
+    .ag-fin-leyenda__fila--activa { background: var(--cyan-dim); border: 1px solid var(--cyan-mid); }
     .ag-fin-leyenda__dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
     .ag-fin-leyenda__pct { color: var(--muted); margin-left: auto; }
+    .ag-fin-filtro-chip { display: inline-flex; align-items: center; gap: .5rem; background: var(--cyan-dim); border: 1px solid var(--cyan-mid); color: var(--cyan); font-size: .76rem; padding: .4rem .8rem; border-radius: 20px; margin-bottom: .8rem; }
+    .ag-fin-filtro-chip button { background: none; border: none; color: var(--cyan); cursor: pointer; font-size: .72rem; font-family: inherit; }
     .ag-fin-movs { display: flex; flex-direction: column; gap: .5rem; max-height: 480px; overflow-y: auto; }
     .ag-fin-mov { display: flex; align-items: center; gap: .7rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; }
     .ag-fin-mov__icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .9rem; flex-shrink: 0; }
@@ -318,11 +322,11 @@
           </div>
           <div class="ag-stat-card ag-stat-card--warn" id="agBannerPorVencer">
             <span class="ag-stat-card__icon">⏰</span>
-            <div><p class="ag-stat-card__label">Por vencer</p><p class="ag-stat-card__num" id="agStatPorVencer">0</p></div>
+            <div><p class="ag-stat-card__label">Próximas</p><p class="ag-stat-card__num" id="agStatPorVencer">0</p></div>
           </div>
           <div class="ag-stat-card ag-stat-card--danger" id="agBannerVencidos">
             <span class="ag-stat-card__icon">⚠</span>
-            <div><p class="ag-stat-card__label">Vencidos</p><p class="ag-stat-card__num" id="agStatVencidos">0</p></div>
+            <div><p class="ag-stat-card__label">Demoradas</p><p class="ag-stat-card__num" id="agStatVencidos">0</p></div>
           </div>
         </div>
 
@@ -658,7 +662,7 @@
     <div class="modal">
       <button class="modal__close" id="agBtnCerrarModalRecordatorios">✕</button>
       <h2 class="modal__title">Recordatorios</h2>
-      <p style="font-size:.8rem;color:var(--muted);margin:0 0 1.2rem">Elegí cómo querés que te avisen cuando algo esté por vencer.</p>
+      <p style="font-size:.8rem;color:var(--muted);margin:0 0 1.2rem">Elegí cómo querés que te avisen cuando algo se acerque.</p>
       <div style="display:flex;flex-direction:column;gap:.6rem">
         <button class="btn btn--full" id="agBtnNotif">🔔 Activar notificaciones del navegador</button>
         <a class="btn btn--full" id="agBtnIcs" href="#" target="_blank" style="text-decoration:none;text-align:center">📅 Suscribirme desde el celular</a>

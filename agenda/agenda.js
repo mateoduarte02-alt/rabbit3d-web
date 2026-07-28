@@ -221,8 +221,8 @@
       const dias = diasHasta(i.fecha_limite)
       const entregado = i.estado === 'entregado'
       let claseItem = '', claseFecha = 'ag-item__fecha--ok', textoFecha
-      if (!entregado && dias < 0)      { claseItem = 'ag-item--vencido';    claseFecha = 'ag-item__fecha--vencido';   textoFecha = `Venció hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}` }
-      else if (!entregado && dias <= DIAS_ALERTA) { claseItem = 'ag-item--por-vencer'; claseFecha = 'ag-item__fecha--por-vencer'; textoFecha = dias===0?'Vence hoy':`Vence en ${dias} día${dias===1?'':'s'}` }
+      if (!entregado && dias < 0)      { claseItem = 'ag-item--vencido';    claseFecha = 'ag-item__fecha--vencido';   textoFecha = `Demorada hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}` }
+      else if (!entregado && dias <= DIAS_ALERTA) { claseItem = 'ag-item--por-vencer'; claseFecha = 'ag-item__fecha--por-vencer'; textoFecha = dias===0?'Es hoy':`Faltan ${dias} día${dias===1?'':'s'}` }
       else { textoFecha = entregado ? formatearFecha(i.fecha_limite) : `${formatearFecha(i.fecha_limite)} · faltan ${dias} día${dias===1?'':'s'}` }
       if (entregado) claseItem += ' ag-item--entregado'
 
@@ -468,7 +468,7 @@
     if (!('Notification' in window)) { alert('Tu navegador no soporta notificaciones.'); return }
     const permiso = await Notification.requestPermission()
     if (permiso === 'granted') {
-      new Notification('¡Listo! 🔔', { body: 'Vas a recibir avisos acá cuando algo esté por vencer.' })
+      new Notification('¡Listo! 🔔', { body: 'Vas a recibir avisos acá cuando algo se acerque.' })
       renderBanners()
     } else {
       alert('No diste permiso — no vamos a poder mostrarte notificaciones del navegador.')
@@ -484,7 +484,7 @@
     nuevos.forEach(i => {
       const t = tipoDe(i.tipo_id) || { icono: '📌', nombre: '' }
       const dias = diasHasta(i.fecha_limite)
-      const cuando = dias < 0 ? `venció hace ${Math.abs(dias)} día(s)` : dias === 0 ? 'vence hoy' : `vence en ${dias} día(s)`
+      const cuando = dias < 0 ? `demorada hace ${Math.abs(dias)} día(s)` : dias === 0 ? 'es hoy' : `faltan ${dias} día(s)`
       new Notification(`${t.icono} ${t.nombre}: ${i.titulo}`, { body: cuando.charAt(0).toUpperCase() + cuando.slice(1) })
     })
     localStorage.setItem('lm_agenda_notif_' + hoy, JSON.stringify([...yaNotificados, ...nuevos.map(i => i.id)]))
@@ -730,6 +730,7 @@
   let movimientos = []
   let periodoActual = 'mes'
   let pieNaturaleza = 'gasto'
+  let filtroCategoriaFinId = null
   let movModalNaturaleza = 'ingreso'
 
   function fmtMonto(n) {
@@ -767,6 +768,7 @@
     document.querySelectorAll('.ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
     btn.classList.add('activo')
     periodoActual = btn.dataset.periodo
+    filtroCategoriaFinId = null
     cargarFinanzas()
   })
 
@@ -830,12 +832,12 @@
         const pct = (monto / total) * 100
         stops.push(`${c.color} ${acumulado}% ${acumulado+pct}%`)
         acumulado += pct
-        return { nombre: c.nombre, color: c.color, monto, pct }
+        return { catId: Number(catId), nombre: c.nombre, color: c.color, monto, pct }
       })
 
     pie.style.background = `conic-gradient(${stops.join(', ')})`
     leyenda.innerHTML = filas.map(f => `
-      <div class="ag-fin-leyenda__fila">
+      <div class="ag-fin-leyenda__fila ${filtroCategoriaFinId===f.catId?'ag-fin-leyenda__fila--activa':''}" onclick="window._agFiltrarPorCategoriaFin(${f.catId})">
         <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
         ${f.nombre} · ${fmtMonto(f.monto)}
         <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
@@ -843,14 +845,36 @@
     `).join('')
   }
 
+  window._agFiltrarPorCategoriaFin = function (catId) {
+    filtroCategoriaFinId = (filtroCategoriaFinId === catId) ? null : catId
+    renderFinPie()
+    renderFinMovs()
+  }
+
   async function renderFinMovs() {
     const cont = document.getElementById('agFinMovs')
     const empty = document.getElementById('agFinMovsEmpty')
-    if (!movimientos.length) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+
+    // Chip de filtro activo (arriba de la lista de movimientos)
+    let chipCont = document.getElementById('agFinFiltroChip')
+    if (!chipCont) {
+      chipCont = document.createElement('div')
+      chipCont.id = 'agFinFiltroChip'
+      cont.parentNode.insertBefore(chipCont, cont)
+    }
+    if (filtroCategoriaFinId) {
+      const c = categorias.find(x => x.id === filtroCategoriaFinId)
+      chipCont.innerHTML = `<div class="ag-fin-filtro-chip">Filtrando por: <strong>${c ? c.nombre : 'categoría'}</strong> <button onclick="window._agFiltrarPorCategoriaFin(${filtroCategoriaFinId})">✕ quitar</button></div>`
+    } else {
+      chipCont.innerHTML = ''
+    }
+
+    const visibles = filtroCategoriaFinId ? movimientos.filter(m => m.categoria_id === filtroCategoriaFinId) : movimientos
+    if (!visibles.length) { cont.innerHTML = ''; empty.style.display = 'block'; return }
     empty.style.display = 'none'
 
     // Los gastos reembolsados pueden ser de otro período — buscamos los que falten
-    const idsFaltantes = [...new Set(movimientos.filter(m => m.gasto_relacionado_id && !movimientos.some(x => x.id === m.gasto_relacionado_id)).map(m => m.gasto_relacionado_id))]
+    const idsFaltantes = [...new Set(visibles.filter(m => m.gasto_relacionado_id && !movimientos.some(x => x.id === m.gasto_relacionado_id)).map(m => m.gasto_relacionado_id))]
     let gastosRelacionados = {}
     if (idsFaltantes.length) {
       const { data } = await supabase.from('finanzas_movimientos').select('id, descripcion, categoria_id').in('id', idsFaltantes)
@@ -858,7 +882,7 @@
     }
     movimientos.forEach(m => { if (m.gasto_relacionado_id) gastosRelacionados[m.id] = gastosRelacionados[m.id] || m })
 
-    cont.innerHTML = movimientos.map(m => {
+    cont.innerHTML = visibles.map(m => {
       const c = categorias.find(x => x.id === m.categoria_id) || { nombre: 'Sin categoría', color: '#607080' }
       const bil = billeteras.find(x => x.id === m.billetera_id)
       const esIngreso = m.naturaleza === 'ingreso'
@@ -871,8 +895,8 @@
       return `<div class="ag-fin-mov">
         <span class="ag-fin-mov__icon" style="background:${c.color}33">${esIngreso?'💚':'💸'}</span>
         <div class="ag-fin-mov__body">
-          <p class="ag-fin-mov__cat">${c.nombre} <span style="color:var(--muted);font-weight:400">· ${formatearFecha(m.fecha)}${bil ? ' · '+bil.nombre : ''}</span></p>
-          ${m.descripcion ? `<p class="ag-fin-mov__desc">${m.descripcion}</p>` : ''}
+          <p class="ag-fin-mov__cat">${m.descripcion || c.nombre}</p>
+          <p class="ag-fin-mov__desc">${m.descripcion ? c.nombre+' · ' : ''}${formatearFecha(m.fecha)}${bil ? ' · '+bil.nombre : ''}</p>
           ${reembolsoHtml}
         </div>
         <span class="ag-fin-mov__monto ${esIngreso?'ag-fin-mov__monto--ingreso':'ag-fin-mov__monto--gasto'}">${esIngreso?'+':'-'}${fmtMonto(m.monto)}</span>
