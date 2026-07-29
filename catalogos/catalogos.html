@@ -17,7 +17,7 @@
     .cat-header__brand img { width: 32px; height: 32px; }
     .cat-volver { color: var(--muted); font-size: .8rem; text-decoration: none; }
     .cat-volver:hover { color: var(--cyan); }
-    .cat-main { max-width: 1440px; margin: 0 auto; padding: 2.6rem clamp(1.5rem, 4vw, 3.5rem) 5rem; }
+    .cat-main { max-width: 1440px; margin: 0 auto; padding: 1.3rem clamp(1.5rem, 4vw, 3.5rem) 5rem; }
     .cat-intro { text-align: center; margin-bottom: 2.5rem; }
     .cat-intro h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.4rem; letter-spacing: .04em; margin: 0 0 .6rem; }
     .cat-intro p { color: var(--muted); font-size: .85rem; max-width: 560px; margin: 0 auto; line-height: 1.6; }
@@ -56,19 +56,45 @@
     .cat-stats-table tr:hover td { background: var(--bg3); }
     .cat-stats-table td.cat-stats-muted { color: var(--muted); }
 
-    /* ── Topbar tipo tienda: logo, buscador, login ──────────────── */
-    .cat-topbar {
-      display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
-      padding: 1.3rem 1.8rem; margin-bottom: 2.4rem;
+    .cat-storage-bar-wrap { margin-bottom: 1.4rem; }
+    .cat-storage-bar { width: 100%; height: 10px; border-radius: 6px; background: var(--bg3); overflow: hidden; }
+    .cat-storage-bar__fill { height: 100%; background: var(--cyan); transition: width .4s; }
+    .cat-storage-bar__fill--alerta { background: #d94060; }
+
+    .cat-nuevos-aviso {
+      background: var(--cyan-dim); border: 1px solid var(--cyan-mid); border-radius: 10px;
+      padding: .8rem 1rem; font-size: .8rem; color: var(--text); margin-bottom: 1.3rem; line-height: 1.5;
     }
-    .cat-topbar__brand { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
-    .cat-topbar__brand img { width: 136px; height: 136px; border-radius: 20px; object-fit: cover; background: var(--bg3); border: 2px solid var(--border); }
-    .cat-topbar__brand span { font-family: var(--font-head); font-weight: 700; color: var(--text); font-size: 1.25rem; }
-    .cat-topbar__search { flex: 0 1 320px; min-width: 160px; margin-left: auto; }
+    .cat-nuevos-aviso strong { color: var(--cyan); }
+
+    .cat-item__grip {
+      position: absolute; top: .45rem; left: .45rem; z-index: 3; width: 24px; height: 24px; border-radius: 6px;
+      background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; cursor: grab; opacity: 0; transition: opacity .15s;
+    }
+    .cat-item:hover .cat-item__grip { opacity: .85; }
+    .cat-item--arrastrando { opacity: .4; }
+    .cat-item__precio-tachado { color: var(--muted); text-decoration: line-through; font-size: .68rem; margin-right: .35rem; }
+    .cat-producto-modal__precio-tachado { color: var(--muted); text-decoration: line-through; font-size: .85rem; margin-right: .5rem; font-weight: 400; }
+
+    /* ── Header: logo grande afuera + barra fina al lado (nav, buscador, login) ── */
+    .cat-header-row { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .cat-logo-standalone { width: 136px; height: 136px; border-radius: 20px; object-fit: cover; background: var(--bg3); border: 2px solid var(--border); flex-shrink: 0; }
+    .cat-topbar {
+      flex: 1; min-width: 280px; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+      padding: .85rem 1.5rem;
+    }
+    .cat-topbar__brand-text { font-family: var(--font-head); font-weight: 700; color: var(--text); font-size: 1.1rem; flex-shrink: 0; }
+    .cat-topbar__nav { display: flex; align-items: center; gap: 1.3rem; flex-shrink: 0; }
+    .cat-topbar__nav a { color: var(--muted); font-size: .84rem; font-weight: 600; text-decoration: none; transition: color .15s; }
+    .cat-topbar__nav a:hover { color: var(--cyan); }
+    .cat-topbar__hamburguesa { display: none; font-size: 1.1rem; }
+    .cat-topbar__search { position: relative; flex: 1 1 260px; max-width: 420px; min-width: 180px; margin-left: auto; }
+    .cat-topbar__search-icon { position: absolute; top: 50%; left: .85rem; transform: translateY(-50%); font-size: .82rem; opacity: .55; pointer-events: none; }
     .cat-topbar__search input {
       width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
-      padding: .8rem 1.1rem; color: var(--text); font-size: .88rem; font-family: var(--font-body);
+      padding: .8rem 1.1rem .8rem 2.4rem; color: var(--text); font-size: .88rem; font-family: var(--font-body);
     }
     .cat-topbar__search input::placeholder { color: var(--muted); }
     .cat-topbar__search input:focus { outline: none; border-color: var(--cyan); }
@@ -87,11 +113,6 @@
     }
     .cat-login-dropdown .form-input { margin-bottom: .55rem; font-size: .8rem; padding: .5rem .7rem; }
     .cat-login-dropdown__email { font-size: .7rem; color: var(--muted); margin: 0 0 .7rem; word-break: break-all; }
-    .cat-contacto-fila {
-      display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: var(--text); text-decoration: none;
-      padding: .55rem .7rem; border-radius: 8px; background: var(--bg3); transition: background .15s, color .15s;
-    }
-    .cat-contacto-fila:hover { background: var(--cyan-dim); color: var(--cyan); }
 
     /* ── Layout: sidebar de categorías + contenido ──────────────── */
     .cat-layout { display: flex; gap: 2.8rem; align-items: flex-start; }
@@ -99,22 +120,71 @@
     .cat-sidebar__section { margin-bottom: 2.2rem; }
     .cat-sidebar__titulo { font-family: var(--font-head); font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 .9rem; }
     .cat-sidebar__lista { display: flex; flex-direction: column; gap: .15rem; }
-    .cat-cat-btn { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--muted); font-size: .86rem; padding: .55rem .7rem; border-radius: 8px; cursor: pointer; transition: background .15s, color .15s; font-family: var(--font-body); }
+    .cat-cat-btn { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; text-align: left; background: none; border: none; color: var(--muted); font-size: .86rem; padding: .55rem .7rem; border-radius: 8px; cursor: pointer; transition: background .15s, color .15s; font-family: var(--font-body); }
     .cat-cat-btn:hover { background: var(--bg3); color: var(--text); }
     .cat-cat-btn--activo { background: var(--cyan-dim); color: var(--cyan); font-weight: 700; }
+    .cat-cat-btn__count { font-size: .68rem; opacity: .65; flex-shrink: 0; }
     .cat-sidebar__tool { display: flex; align-items: center; gap: .5rem; font-size: .78rem; color: var(--muted); text-decoration: none; padding: .55rem .6rem; border-radius: 8px; transition: background .15s, color .15s; }
     .cat-sidebar__tool:hover { background: var(--bg3); color: var(--cyan); }
 
     .cat-content { flex: 1; min-width: 0; }
     .cat-content__header { margin-bottom: 2.2rem; }
     .cat-content__header h1 { font-family: var(--font-head); font-size: 1.75rem; color: var(--text); margin: 0 0 .6rem; }
-    .cat-content__header p { color: var(--muted); font-size: .9rem; line-height: 1.65; margin: 0; max-width: 680px; }
+    .cat-content__header p { color: var(--muted); font-size: .9rem; line-height: 1.65; margin: 0 0 1rem; max-width: 680px; }
+
+    .cat-acento-franja { height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--cyan), transparent 85%); margin-bottom: 1.8rem; }
+
+    .cat-content__toolbar { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-bottom: 1.2rem; }
+    .cat-content__toolbar-label { font-size: .72rem; color: var(--muted); }
+    .cat-select-orden {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      font-size: .78rem; padding: .45rem .7rem; font-family: var(--font-body); cursor: pointer;
+    }
+    .cat-select-orden:focus { outline: none; border-color: var(--cyan); }
 
     @media (max-width: 780px) {
       .cat-layout { flex-direction: column; gap: 1.8rem; }
       .cat-sidebar { width: 100%; }
       .cat-sidebar__lista { flex-direction: row; flex-wrap: wrap; }
       .cat-cat-btn { width: auto; }
+      .cat-logo-standalone { width: 84px; height: 84px; }
+    }
+
+    /* ── Celular: el header/topbar armado a mano necesita su propio pase,
+       ya que el resto del sitio no lo cubre. ─────────────────────────── */
+    @media (max-width: 640px) {
+      .cat-main { padding-left: 1rem; padding-right: 1rem; padding-top: 1rem; }
+      .cat-intro h1 { font-size: 1.15rem; }
+
+      .cat-header-row { gap: .8rem; }
+      .cat-logo-standalone { width: 64px; height: 64px; border-radius: 14px; }
+
+      .cat-topbar { width: 100%; min-width: 0; padding: .8rem 1rem; gap: .7rem; position: relative; }
+      .cat-topbar__brand-text { order: 1; width: auto; font-size: 1rem; margin-right: auto; }
+      .cat-topbar__nav {
+        display: none; order: 5; position: absolute; top: calc(100% + .6rem); left: 0; right: 0;
+        flex-direction: column; gap: .2rem; background: var(--card-bg); border: 1px solid var(--border);
+        border-radius: 10px; padding: .7rem .9rem; z-index: 70; box-shadow: 0 12px 32px rgba(0,0,0,.4);
+      }
+      .cat-topbar__nav--abierto { display: flex; }
+      .cat-topbar__nav a { font-size: .88rem; padding: .55rem .2rem; }
+      .cat-topbar__search { order: 3; width: 100%; max-width: none; min-width: 0; margin-left: 0; flex-basis: 100%; }
+      .cat-topbar__actions { order: 2; width: auto; justify-content: flex-end; }
+      .cat-topbar__hamburguesa { display: flex; }
+      .cat-login-dropdown { width: min(260px, calc(100vw - 3rem)); right: -.5rem; }
+
+      .cat-content__header h1 { font-size: 1.35rem; }
+      .cat-content__toolbar { justify-content: space-between; }
+
+      .cat-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .9rem; }
+
+      .cat-owner-bar { width: min(220px, calc(100vw - 1.4rem)); }
+      .cat-producto-modal__arrow { width: 34px; height: 34px; font-size: 1.2rem; }
+      .cat-upload-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 400px) {
+      .cat-tema-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     /* Grid de productos */
@@ -144,6 +214,10 @@
     .cat-item__admin-btns { position: absolute; top: .45rem; right: .45rem; display: flex; gap: .3rem; z-index: 3; }
     .cat-item__admin-btn { background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.1); color: #fff; border-radius: 7px; width: 27px; height: 27px; display:flex; align-items:center; justify-content:center; cursor: pointer; font-size: .78rem; transition: background .15s; }
     .cat-item__admin-btn:hover { background: var(--cyan); color: #06232a; }
+    .cat-item__destacado-badge {
+      position: absolute; top: .45rem; left: 50%; transform: translateX(-50%); z-index: 2;
+      background: rgba(0,0,0,.55); border-radius: 20px; padding: .15rem .55rem; font-size: .78rem;
+    }
     .cat-empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 3rem 1rem; }
 
     /* Pie de página — único lugar donde se nota que corre en La Madriguera */
@@ -157,6 +231,21 @@
     }
     .cat-site-footer__cta:hover { background: var(--cyan-dim); transform: translateY(-1px); }
 
+    .cat-contacto-footer { border-top: 1px solid var(--border); margin-top: 2.5rem; padding-top: 2.2rem; }
+    .cat-contacto-footer__titulo {
+      font-family: var(--font-head); font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--muted); margin: 0 0 1.1rem; text-align: center;
+    }
+    .cat-contacto-footer__grid { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; }
+    .cat-contacto-footer__item {
+      display: flex; align-items: center; gap: .5rem; font-size: .84rem; color: var(--text); text-decoration: none;
+      padding: .65rem 1rem; border-radius: 10px; background: var(--card-bg); border: 1px solid var(--border);
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .cat-contacto-footer__item:hover { border-color: var(--cyan-mid); color: var(--cyan); }
+    .cat-contacto-footer__item--info { cursor: default; }
+    .cat-contacto-footer__item--info:hover { border-color: var(--border); color: var(--text); }
+
     /* Globito de WhatsApp flotante — como cualquier tienda online */
     .cat-whatsapp-bubble {
       position: fixed; bottom: 1.4rem; left: 1.4rem; width: 56px; height: 56px; border-radius: 50%;
@@ -166,43 +255,43 @@
     }
     .cat-whatsapp-bubble:hover { transform: scale(1.08); }
 
-    /* Panel flotante de edición — visible solo para la dueña/admin, siempre con la
-       estética de La Madriguera (no cambia con el tema del catálogo) para que quede
-       claro que es una herramienta, no parte del sitio público. Abajo a la DERECHA;
-       el globito de WhatsApp quedó a la izquierda para no superponerse. */
+    /* Panel flotante de edición — visible solo para la dueña/admin. Ahora sí
+       adopta la paleta elegida por el dueño (usa las mismas variables de tema
+       que el resto de la página), en vez de quedar fijo en cyan/navy. Abajo a
+       la DERECHA; el globito de WhatsApp quedó a la izquierda para no superponerse. */
     .cat-owner-bar {
       display: none; position: fixed; bottom: 1.4rem; right: 1.4rem; z-index: 500;
-      flex-direction: column; background: #00111c; border: 1px solid rgba(21,154,156,.5);
-      border-radius: 14px; width: 210px; box-shadow: 0 10px 36px rgba(0,0,0,.55), 0 0 0 1px rgba(21,154,156,.15);
+      flex-direction: column; background: var(--card-bg); border: 1px solid var(--cyan-mid);
+      border-radius: 14px; width: 210px; box-shadow: 0 10px 36px rgba(0,0,0,.55), 0 0 0 1px var(--cyan-soft);
       overflow: hidden;
     }
     .cat-owner-bar__header {
       display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-      padding: .7rem .9rem; background: rgba(21,154,156,.14); border-bottom: 1px solid rgba(21,154,156,.28);
+      padding: .7rem .9rem; background: var(--cyan-dim); border-bottom: 1px solid var(--cyan-soft);
     }
     .cat-owner-bar__title {
       font-family: var(--font-head); font-size: .6rem; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: #5de8ea;
+      text-transform: uppercase; color: var(--cyan);
     }
-    .cat-owner-bar__estado { font-size: .64rem; color: #9fd4d6; font-weight: 700; white-space: nowrap; }
+    .cat-owner-bar__estado { font-size: .64rem; color: var(--cyan); opacity: .85; font-weight: 700; white-space: nowrap; }
     .cat-owner-bar__body { display: flex; flex-direction: column; gap: .35rem; padding: .7rem; }
     .cat-owner-bar .btn {
-      width: 100%; justify-content: center; font-size: .7rem; background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.14); color: #d0eef2;
+      width: 100%; justify-content: center; font-size: .7rem; background: var(--bg3);
+      border: 1px solid var(--border); color: var(--text);
     }
-    .cat-owner-bar .btn:hover { background: rgba(21,154,156,.18); }
-    .cat-owner-bar .btn--primary { background: #159A9C; border-color: #159A9C; color: #fff; }
-    .cat-owner-bar .btn--primary:hover { background: transparent; color: #5de8ea; }
+    .cat-owner-bar .btn:hover { background: var(--cyan-dim); }
+    .cat-owner-bar .btn--primary { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+    .cat-owner-bar .btn--primary:hover { background: transparent; color: var(--cyan); }
     .cat-owner-bar__sub {
       font-family: var(--font-head); font-size: .56rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-      color: #5de8ea; opacity: .75; margin: .5rem 0 .4rem; padding-top: .6rem; border-top: 1px solid rgba(255,255,255,.08);
+      color: var(--cyan); opacity: .75; margin: .5rem 0 .4rem; padding-top: .6rem; border-top: 1px solid var(--border);
     }
     .cat-owner-bar__tool {
-      display: block; width: 100%; text-align: left; font-size: .68rem; color: #d0eef2; text-decoration: none;
+      display: block; width: 100%; text-align: left; font-size: .68rem; color: var(--text); text-decoration: none;
       padding: .4rem .5rem; border-radius: 6px; transition: background .15s; background: none; border: none;
       cursor: pointer; font-family: var(--font-body);
     }
-    .cat-owner-bar__tool:hover { background: rgba(21,154,156,.18); color: #5de8ea; }
+    .cat-owner-bar__tool:hover { background: var(--cyan-dim); color: var(--cyan); }
     @media (max-width: 640px) { .cat-owner-bar { width: 170px; right: .7rem; bottom: .7rem; } }
 
     .cat-form { max-width: 460px; }
@@ -253,6 +342,31 @@
     .cat-check-pill input { accent-color: var(--cyan); }
     .cat-check-pill--vacio { font-style: italic; opacity: .7; cursor: default; }
 
+    /* Vista de producto individual */
+    .cat-producto-modal { max-width: 640px; width: 95%; padding: 0; overflow: hidden; gap: 0; }
+    .cat-producto-modal .modal__close {
+      background: rgba(0,0,0,.55); color: #fff; width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; z-index: 5; top: .8rem; right: .8rem;
+    }
+    .cat-producto-modal .modal__close:hover { background: rgba(0,0,0,.8); color: #fff; }
+    .cat-producto-modal__img-wrap { position: relative; width: 100%; aspect-ratio: 1/1; max-height: 55vh; background: var(--bg3); }
+    .cat-producto-modal__img { width: 100%; height: 100%; object-fit: contain; background: var(--bg3); display: block; }
+    .cat-producto-modal__arrow {
+      position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(0,0,0,.45); border: none; color: #fff; font-size: 1.4rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: background .15s;
+    }
+    .cat-producto-modal__arrow:hover { background: rgba(0,0,0,.7); }
+    .cat-producto-modal__arrow--left { left: .7rem; }
+    .cat-producto-modal__arrow--right { right: .7rem; }
+    .cat-producto-modal__dots { position: absolute; bottom: .8rem; left: 50%; transform: translateX(-50%); display: flex; gap: .4rem; }
+    .cat-producto-modal__dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.45); border: none; cursor: pointer; padding: 0; }
+    .cat-producto-modal__dot--activo { background: #fff; }
+    .cat-producto-modal__body { padding: 1.4rem 1.6rem 1.6rem; }
+    .cat-producto-modal__titulo { font-family: var(--font-head); font-size: 1.2rem; color: var(--text); margin: 0 0 .5rem; }
+    .cat-producto-modal__precio { font-family: var(--font-head); font-size: 1.15rem; color: var(--cyan); font-weight: 700; margin: 0 0 .9rem; }
+    .cat-producto-modal__desc { color: var(--muted); font-size: .88rem; line-height: 1.65; margin: 0 0 1.3rem; }
+
     /* Filas de categorías dentro del modal de gestión */
     .cat-cat-row { display: flex; gap: .5rem; align-items: center; }
     .cat-cat-row input.form-input { flex: 1; }
@@ -293,6 +407,7 @@
       <div class="cat-admin-toolbar">
         <button class="btn btn--primary btn--sm" id="catBtnCrearElMio">¿Tenés un emprendimiento? Creá tu catálogo</button>
       </div>
+      <div id="catNuevosAviso" style="display:none" class="cat-nuevos-aviso"></div>
       <div class="cat-admin-grid" id="catAdminGrid"></div>
       <p class="cat-empty" id="catAdminEmpty" style="display:none">Todavía no hay catálogos publicados.</p>
     </div>
@@ -301,39 +416,41 @@
          dueño — sin la barra de La Madriguera arriba, solo un crédito chico al pie. -->
     <div id="catVistaCatalogo" style="display:none">
 
-      <div class="cat-topbar">
-        <div class="cat-topbar__brand">
-          <img id="catTopLogo" style="display:none"/>
-          <span id="catTopNombre"></span>
-        </div>
-        <div class="cat-topbar__search">
-          <input type="text" id="catBuscador" placeholder="Buscar productos..."/>
-        </div>
-        <div class="cat-topbar__actions">
-          <div class="cat-topbar__action-wrap">
-            <button class="cat-topbar__icon-btn" id="catBtnContacto" title="Contacto" style="display:none">💬</button>
-            <div class="cat-login-dropdown" id="catContactoDropdown" style="display:none">
-              <p style="font-weight:700;font-size:.82rem;margin:0 0 .8rem;color:var(--text)">Contacto</p>
-              <div id="catContactoLista" style="display:flex;flex-direction:column;gap:.5rem"></div>
-            </div>
+      <div class="cat-header-row">
+        <img id="catTopLogo" class="cat-logo-standalone" style="display:none"/>
+        <div class="cat-topbar">
+          <span id="catTopNombre" class="cat-topbar__brand-text"></span>
+          <nav class="cat-topbar__nav" id="catTopbarNav">
+            <a href="#" id="catNavCatalogo">Catálogo</a>
+            <a href="#" id="catNavSobre">Sobre nosotros</a>
+            <a href="#" id="catNavContacto">Contacto</a>
+          </nav>
+          <div class="cat-topbar__search">
+            <span class="cat-topbar__search-icon">🔍</span>
+            <input type="text" id="catBuscador" placeholder="Buscar productos..."/>
           </div>
-          <div class="cat-topbar__action-wrap">
-            <button class="cat-topbar__icon-btn" id="catBtnLoginIcon" title="Iniciar sesión">👤</button>
-            <div class="cat-login-dropdown" id="catLoginDropdown" style="display:none">
-              <div id="catLoginDropdownForm">
-                <input type="email" id="catTopLoginEmail" class="form-input" placeholder="Email"/>
-                <input type="password" id="catTopLoginPass" class="form-input" placeholder="Contraseña"/>
-                <p class="form-error" id="catTopLoginError"></p>
-                <button class="btn btn--primary btn--full btn--sm" id="catBtnTopLogin">Ingresar</button>
-              </div>
-              <div id="catLoginDropdownSesion" style="display:none">
-                <p class="cat-login-dropdown__email" id="catSesionEmailLabel"></p>
-                <button class="btn btn--sm btn--full" id="catBtnLogout">Cerrar sesión</button>
+          <div class="cat-topbar__actions">
+            <button class="cat-topbar__icon-btn cat-topbar__hamburguesa" id="catBtnMenuMobile" title="Menú">☰</button>
+            <div class="cat-topbar__action-wrap">
+              <button class="cat-topbar__icon-btn" id="catBtnLoginIcon" title="Iniciar sesión">👤</button>
+              <div class="cat-login-dropdown" id="catLoginDropdown" style="display:none">
+                <div id="catLoginDropdownForm">
+                  <input type="email" id="catTopLoginEmail" class="form-input" placeholder="Email"/>
+                  <input type="password" id="catTopLoginPass" class="form-input" placeholder="Contraseña"/>
+                  <p class="form-error" id="catTopLoginError"></p>
+                  <button class="btn btn--primary btn--full btn--sm" id="catBtnTopLogin">Ingresar</button>
+                </div>
+                <div id="catLoginDropdownSesion" style="display:none">
+                  <p class="cat-login-dropdown__email" id="catSesionEmailLabel"></p>
+                  <button class="btn btn--sm btn--full" id="catBtnLogout">Cerrar sesión</button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <div class="cat-acento-franja"></div>
 
       <div class="cat-layout">
         <aside class="cat-sidebar">
@@ -348,10 +465,24 @@
             <h1 id="catDetNombre"></h1>
             <p id="catDetDesc"></p>
           </div>
+          <div class="cat-content__toolbar">
+            <span class="cat-content__toolbar-label">Ordenar por</span>
+            <select id="catSelectOrden" class="cat-select-orden">
+              <option value="manual">Orden del catálogo</option>
+              <option value="recientes">Más recientes primero</option>
+              <option value="precio-asc">Precio: menor a mayor</option>
+              <option value="precio-desc">Precio: mayor a menor</option>
+            </select>
+          </div>
           <div id="catItemsGrid" class="cat-grid"></div>
           <p class="cat-empty" id="catItemsEmpty" style="display:none">Todavía no hay productos cargados.</p>
         </div>
       </div>
+
+      <section class="cat-contacto-footer" id="catContactoFooter" style="display:none">
+        <h2 class="cat-contacto-footer__titulo">Contacto</h2>
+        <div class="cat-contacto-footer__grid" id="catContactoFooterLista"></div>
+      </section>
 
       <footer class="cat-site-footer">
         <p class="cat-site-footer__credito">Catálogo creado por <strong>Mateo Duarte</strong> — <a href="../index.html">La Madriguera</a></p>
@@ -376,6 +507,7 @@
       <button class="btn" id="catBtnGestionarCategorias">🏷️ Categorías</button>
       <button class="btn" id="catBtnTogglePublicado"></button>
       <button class="btn" id="catBtnEditarCatalogo">✎ Editar datos</button>
+      <button class="btn" id="catBtnQR">📱 Código QR</button>
     </div>
     <div class="cat-owner-bar__body" id="catHerramientasSection" style="display:none;padding-top:0">
       <p class="cat-owner-bar__sub">Herramientas de emprendedor</p>
@@ -462,8 +594,42 @@
           <input type="text" id="catCatalogoOtroUrl" class="form-input" placeholder="Link"/>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Horario y ubicación (opcional — útil si hacen retiro en persona)</label>
+        <input type="text" id="catCatalogoHorario" class="form-input" placeholder="Horario: Lun a Vie de 9 a 18hs" style="margin-bottom:.6rem"/>
+        <input type="text" id="catCatalogoUbicacion" class="form-input" placeholder="Ubicación: Palermo, CABA"/>
+      </div>
       <p class="form-error" id="catCatalogoError"></p>
       <button class="btn btn--primary btn--full" id="catBtnGuardarCatalogo">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: vista de producto individual (pública) -->
+  <div class="modal-overlay" id="catModalProducto">
+    <div class="modal cat-producto-modal">
+      <button class="modal__close" id="catBtnCerrarProducto">✕</button>
+      <div class="cat-producto-modal__img-wrap" id="catProdImgWrap"></div>
+      <div class="cat-producto-modal__body">
+        <h2 class="cat-producto-modal__titulo" id="catProdTitulo"></h2>
+        <p class="cat-producto-modal__precio" id="catProdPrecio" style="display:none"></p>
+        <p class="cat-producto-modal__desc" id="catProdDesc" style="display:none"></p>
+        <a class="cat-hero__whatsapp" id="catProdWhatsapp" style="display:none" target="_blank">💬 Consultar por este producto</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: código QR del catálogo (dueño/admin) -->
+  <div class="modal-overlay" id="catModalQR">
+    <div class="modal" style="max-width:360px;text-align:center">
+      <button class="modal__close" id="catBtnCerrarQR">✕</button>
+      <h2 class="modal__title">📱 Código QR de tu catálogo</h2>
+      <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">Imprimilo en una tarjeta o etiqueta para que la gente escanee y llegue directo a tu catálogo.</p>
+      <div style="background:#fff;border-radius:12px;padding:1rem;display:inline-block;margin-bottom:1rem">
+        <img id="catQRImg" src="" alt="Código QR" style="width:220px;height:220px;display:block"/>
+      </div>
+      <p style="font-size:.68rem;color:var(--muted);word-break:break-all;margin:0 0 1.1rem" id="catQRUrl"></p>
+      <a class="btn btn--primary btn--full" id="catBtnDescargarQR" download="qr-catalogo.png" href="#">⬇ Descargar QR</a>
+      <p class="form-error" id="catQRError"></p>
     </div>
   </div>
 
@@ -510,6 +676,17 @@
         <input type="number" id="catItemPrecio" class="form-input" placeholder="0.00" step="0.01"/>
       </div>
       <div class="form-group">
+        <label class="form-label">Precio con descuento (opcional — para ofertas puntuales)</label>
+        <input type="number" id="catItemPrecioOferta" class="form-input" placeholder="Dejalo vacío si no hay oferta" step="0.01"/>
+      </div>
+      <div class="form-group">
+        <label class="cat-check-pill" style="width:fit-content">
+          <input type="checkbox" id="catItemDestacado"/>
+          ⭐ Destacar esta publicación
+        </label>
+        <p style="font-size:.68rem;color:var(--muted);margin:.4rem 0 0" id="catItemDestacadoInfo"></p>
+      </div>
+      <div class="form-group">
         <label class="form-label">Descripción (opcional)</label>
         <textarea id="catItemDesc" class="form-input form-textarea" placeholder="Breve descripción..."></textarea>
       </div>
@@ -525,6 +702,13 @@
       <button class="modal__close" id="catBtnCerrarEstadisticas">✕</button>
       <h2 class="modal__title">📊 Estadísticas de catálogos</h2>
       <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">Quiénes crearon catálogos, cuándo, y cuántas publicaciones subieron.</p>
+      <div class="cat-storage-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:.35rem">
+          <span>Espacio usado en Storage (bucket "catalogos")</span>
+          <span id="catStorageLabel">Calculando...</span>
+        </div>
+        <div class="cat-storage-bar"><div class="cat-storage-bar__fill" id="catStorageFill" style="width:0%"></div></div>
+      </div>
       <div style="max-height:65vh;overflow:auto">
         <table class="cat-stats-table">
           <thead>

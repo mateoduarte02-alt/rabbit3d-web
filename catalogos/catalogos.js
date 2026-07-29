@@ -14,6 +14,8 @@
   // ── Puentes globales para reutilizar tarjetas.js / presupuesto.js / fotoproducto.js
   // tal cual están en el sitio principal, sin reescribirlos ──────────────────
   window.supabase = supabase              // esos scripts esperan un `supabase` global, no uno de módulo
+  window.SUPABASE_URL = SUPABASE_URL      // tarjetas.js (Potenciador) arma la URL de la Edge Function con esto
+  window.SUPABASE_KEY = SUPABASE_KEY
   window.esAdmin = false                  // solo lo usa fotoproducto.js para un aviso de créditos bajos
   window.dlCheck = function (tool, cb) {  // acá no hay límite de descargas — solo entra el dueño/admin
     if (typeof cb === 'function') cb()
@@ -47,6 +49,14 @@
     if (el) el.addEventListener('click', e => { if (e.target === el) window.cerrarEmprendedor(id) })
   })
 
+  // Igual que en el sitio principal: cualquier modal propio (los que usan la
+  // clase "activo" para mostrarse) se cierra al hacer clic afuera de la caja.
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('activo')
+    })
+  })
+
   let usuarioActual  = null
   let esAdminCat      = false
   let catalogoActual  = null   // fila completa del catálogo abierto
@@ -55,6 +65,7 @@
   let categorias      = []
   let categoriaFiltroActual = null // null = "Todos"
   let searchTerm      = ''
+  let ordenActual      = 'manual'
 
   const params = new URLSearchParams(window.location.search)
   const slugURL = params.get('slug')
@@ -218,14 +229,33 @@
     await init()
   })
 
-  // ── Contacto (Instagram / WhatsApp / Otro) ─────────────────────────
-  document.getElementById('catBtnContacto').addEventListener('click', e => {
+  // ── Nav del header: enlaces internos de la propia página ───────────
+  function cerrarMenuMobile() {
+    document.getElementById('catTopbarNav').classList.remove('cat-topbar__nav--abierto')
+  }
+
+  document.getElementById('catBtnMenuMobile').addEventListener('click', e => {
     e.stopPropagation()
-    const dd = document.getElementById('catContactoDropdown')
-    dd.style.display = dd.style.display === 'block' ? 'none' : 'block'
+    document.getElementById('catTopbarNav').classList.toggle('cat-topbar__nav--abierto')
   })
-  document.addEventListener('click', () => { document.getElementById('catContactoDropdown').style.display = 'none' })
-  document.getElementById('catContactoDropdown').addEventListener('click', e => e.stopPropagation())
+  document.addEventListener('click', cerrarMenuMobile)
+  document.getElementById('catTopbarNav').addEventListener('click', e => e.stopPropagation())
+
+  document.getElementById('catNavCatalogo').addEventListener('click', e => {
+    e.preventDefault()
+    cerrarMenuMobile()
+    document.getElementById('catItemsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+  document.getElementById('catNavSobre').addEventListener('click', e => {
+    e.preventDefault()
+    cerrarMenuMobile()
+    document.getElementById('catDetDesc').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+  document.getElementById('catNavContacto').addEventListener('click', e => {
+    e.preventDefault()
+    cerrarMenuMobile()
+    document.getElementById('catContactoFooter').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 
   function instagramUrl(valor) {
     const v = (valor || '').trim()
@@ -235,23 +265,29 @@
   }
 
   function renderContacto() {
-    const btn = document.getElementById('catBtnContacto')
-    const lista = document.getElementById('catContactoLista')
+    const seccion = document.getElementById('catContactoFooter')
+    const lista = document.getElementById('catContactoFooterLista')
     const filas = []
     if (catalogoActual.whatsapp) {
-      filas.push(`<a class="cat-contacto-fila" href="https://wa.me/${catalogoActual.whatsapp.replace(/[^0-9]/g, '')}" target="_blank">💬 WhatsApp</a>`)
+      filas.push(`<a class="cat-contacto-footer__item" href="https://wa.me/${catalogoActual.whatsapp.replace(/[^0-9]/g, '')}" target="_blank">💬 WhatsApp</a>`)
     }
     if (catalogoActual.instagram) {
-      filas.push(`<a class="cat-contacto-fila" href="${instagramUrl(catalogoActual.instagram)}" target="_blank">📷 Instagram</a>`)
+      filas.push(`<a class="cat-contacto-footer__item" href="${instagramUrl(catalogoActual.instagram)}" target="_blank">📷 Instagram</a>`)
     }
     if (catalogoActual.otro_url) {
-      filas.push(`<a class="cat-contacto-fila" href="${catalogoActual.otro_url}" target="_blank">🔗 ${catalogoActual.otro_label || 'Más info'}</a>`)
+      filas.push(`<a class="cat-contacto-footer__item" href="${catalogoActual.otro_url}" target="_blank">🔗 ${catalogoActual.otro_label || 'Más info'}</a>`)
+    }
+    if (catalogoActual.ubicacion) {
+      filas.push(`<span class="cat-contacto-footer__item cat-contacto-footer__item--info">📍 ${catalogoActual.ubicacion}</span>`)
+    }
+    if (catalogoActual.horario) {
+      filas.push(`<span class="cat-contacto-footer__item cat-contacto-footer__item--info">🕒 ${catalogoActual.horario}</span>`)
     }
     if (filas.length === 0) {
-      btn.style.display = 'none'
+      seccion.style.display = 'none'
       return
     }
-    btn.style.display = 'flex'
+    seccion.style.display = 'block'
     lista.innerHTML = filas.join('')
   }
 
@@ -306,9 +342,12 @@
     if (!catalogosData || catalogosData.length === 0) {
       grid.innerHTML = ''
       empty.style.display = 'block'
+      document.getElementById('catNuevosAviso').style.display = 'none'
       return
     }
     empty.style.display = 'none'
+
+    await chequearNuevosCatalogos(catalogosData)
 
     const counts = await Promise.all(catalogosData.map(c =>
       supabase.from('catalogo_items').select('*', { count: 'exact', head: true }).eq('catalogo_id', c.id)
@@ -333,6 +372,29 @@
     `).join('')
   }
 
+  // Aviso de catálogos nuevos desde la última vez que el admin entró acá.
+  // Se guarda server-side (no en localStorage) para que funcione desde
+  // cualquier dispositivo con el que el admin entre.
+  async function chequearNuevosCatalogos(catalogosData) {
+    const aviso = document.getElementById('catNuevosAviso')
+    if (!esAdminCat) { aviso.style.display = 'none'; return }
+    try {
+      const { data: meta } = await supabase.from('catalogos_admin_meta').select('ultima_visita').eq('id', 1).single()
+      const ultimaVisita = meta?.ultima_visita ? new Date(meta.ultima_visita) : null
+      const nuevos = ultimaVisita ? catalogosData.filter(c => new Date(c.created_at) > ultimaVisita) : []
+      if (nuevos.length > 0) {
+        aviso.style.display = 'block'
+        aviso.innerHTML = `🆕 Se ${nuevos.length === 1 ? 'creó' : 'crearon'} <strong>${nuevos.length}</strong> catálogo${nuevos.length === 1 ? '' : 's'} nuevo${nuevos.length === 1 ? '' : 's'} desde tu última visita: ${nuevos.map(c => c.nombre).join(', ')}.`
+      } else {
+        aviso.style.display = 'none'
+      }
+      await supabase.from('catalogos_admin_meta').upsert([{ id: 1, ultima_visita: new Date().toISOString() }])
+    } catch (e) {
+      aviso.style.display = 'none'
+      console.error('No se pudo chequear catálogos nuevos:', e)
+    }
+  }
+
   window._catEliminarCatalogo = async function (id, nombre) {
     if (!confirm(`¿Eliminar el catálogo "${nombre}" junto con todos sus productos y categorías? Esta acción no se puede deshacer.`)) return
     const { error } = await supabase.from('catalogos').delete().eq('id', id)
@@ -354,11 +416,45 @@
     return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
+  // Cuota configurable a mano según tu plan real de Supabase (Free = 1024 MB,
+  // Pro = 8192 MB de base). Ajustala si cambiás de plan.
+  const STORAGE_QUOTA_MB = 1024
+
+  async function actualizarBarraStorage() {
+    const label = document.getElementById('catStorageLabel')
+    const fill  = document.getElementById('catStorageFill')
+    label.textContent = 'Calculando...'
+    fill.style.width = '0%'
+    fill.classList.remove('cat-storage-bar__fill--alerta')
+    try {
+      let archivos = []
+      let offset = 0
+      const limite = 1000
+      while (true) {
+        const { data, error } = await supabase.storage.from('catalogos').list('', { limit: limite, offset })
+        if (error) throw error
+        archivos = archivos.concat(data || [])
+        if (!data || data.length < limite) break
+        offset += limite
+      }
+      const totalBytes = archivos.reduce((sum, f) => sum + (f.metadata?.size || 0), 0)
+      const totalMB = totalBytes / (1024 * 1024)
+      const porcentaje = Math.min(100, (totalMB / STORAGE_QUOTA_MB) * 100)
+      fill.style.width = porcentaje.toFixed(1) + '%'
+      if (porcentaje >= 85) fill.classList.add('cat-storage-bar__fill--alerta')
+      label.textContent = `${totalMB.toFixed(1)} MB de ${STORAGE_QUOTA_MB} MB (${porcentaje.toFixed(0)}%)`
+    } catch (e) {
+      label.textContent = 'No se pudo calcular'
+      console.error('Error calculando espacio de Storage:', e)
+    }
+  }
+
   async function abrirEstadisticasCatalogos() {
     const modal = document.getElementById('catModalEstadisticas')
     const tbody = document.getElementById('catEstadisticasBody')
     tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">Cargando...</td></tr>'
     modal.classList.add('activo')
+    actualizarBarraStorage()
 
     const { data: catalogosData, error } = await supabase.from('catalogos').select('*').order('created_at', { ascending: false })
     if (error) { tbody.innerHTML = `<tr><td colspan="5" style="color:#d94060">Error: ${error.message}</td></tr>`; return }
@@ -498,6 +594,8 @@
     document.getElementById('catCatalogoInstagram').value  = catalogo ? (catalogo.instagram || '') : ''
     document.getElementById('catCatalogoOtroLabel').value  = catalogo ? (catalogo.otro_label || '') : ''
     document.getElementById('catCatalogoOtroUrl').value    = catalogo ? (catalogo.otro_url || '') : ''
+    document.getElementById('catCatalogoHorario').value    = catalogo ? (catalogo.horario || '') : ''
+    document.getElementById('catCatalogoUbicacion').value  = catalogo ? (catalogo.ubicacion || '') : ''
 
     document.getElementById('catCatalogoEmailGroup').style.display = (catalogo || paraSiMismo) ? 'none' : 'block'
     document.getElementById('catCatalogoEmail').value = ''
@@ -559,6 +657,8 @@
     const instagram    = document.getElementById('catCatalogoInstagram').value.trim()
     const otro_label   = document.getElementById('catCatalogoOtroLabel').value.trim()
     const otro_url     = document.getElementById('catCatalogoOtroUrl').value.trim()
+    const horario      = document.getElementById('catCatalogoHorario').value.trim()
+    const ubicacion    = document.getElementById('catCatalogoUbicacion').value.trim()
     const tema         = temaTocado ? leerTemaDeInputs() : null
 
     if (!nombre || !slug) { errEl.textContent = 'Nombre y slug son obligatorios.'; return }
@@ -572,7 +672,7 @@
 
     try {
       if (id) {
-        const datos = { nombre, descripcion, whatsapp, instagram, otro_label, otro_url, logo_url: logoUrlTemp, tema }
+        const datos = { nombre, descripcion, whatsapp, instagram, otro_label, otro_url, horario, ubicacion, logo_url: logoUrlTemp, tema }
         if (esAdminCat) datos.slug = slug
         const { error } = await supabase.from('catalogos').update(datos).eq('id', id)
         if (error) throw error
@@ -591,7 +691,7 @@
           ownerUserId = perfil[0].id
         }
         const { data: nuevo, error } = await supabase.from('catalogos').insert([{
-          user_id: ownerUserId, nombre, slug, descripcion, whatsapp, instagram, otro_label, otro_url, logo_url: logoUrlTemp, tema, publicado: false
+          user_id: ownerUserId, nombre, slug, descripcion, whatsapp, instagram, otro_label, otro_url, horario, ubicacion, logo_url: logoUrlTemp, tema, publicado: false
         }]).select().single()
         if (error) throw error
         await sembrarContenidoInicial(nuevo.id)
@@ -668,7 +768,9 @@
     // Reset de filtros al entrar/recargar el catálogo
     categoriaFiltroActual = null
     searchTerm = ''
+    ordenActual = 'manual'
     document.getElementById('catBuscador').value = ''
+    document.getElementById('catSelectOrden').value = 'manual'
 
     await cargarCategorias()
     await cargarItems()
@@ -695,6 +797,11 @@
     aplicarFiltros()
   })
 
+  document.getElementById('catSelectOrden').addEventListener('change', e => {
+    ordenActual = e.target.value
+    aplicarFiltros()
+  })
+
   // ══════════════════════════════════════════
   //  CATEGORÍAS — sidebar pública + gestión (dueño/admin)
   // ══════════════════════════════════════════
@@ -707,8 +814,11 @@
 
   function renderSidebarCategorias() {
     const cont = document.getElementById('catCategoriasLista')
-    const botones = [`<button class="cat-cat-btn ${categoriaFiltroActual === null ? 'cat-cat-btn--activo' : ''}" data-cat="todos">Todos</button>`]
-      .concat(categorias.map(c => `<button class="cat-cat-btn ${categoriaFiltroActual === c.id ? 'cat-cat-btn--activo' : ''}" data-cat="${c.id}">${c.nombre}</button>`))
+    const botones = [`<button class="cat-cat-btn ${categoriaFiltroActual === null ? 'cat-cat-btn--activo' : ''}" data-cat="todos">Todos <span class="cat-cat-btn__count">${items.length}</span></button>`]
+      .concat(categorias.map(c => {
+        const cantidad = items.filter(it => (it.categoria_ids || []).includes(c.id)).length
+        return `<button class="cat-cat-btn ${categoriaFiltroActual === c.id ? 'cat-cat-btn--activo' : ''}" data-cat="${c.id}">${c.nombre} <span class="cat-cat-btn__count">${cantidad}</span></button>`
+      }))
     cont.innerHTML = botones.join('')
     cont.querySelectorAll('.cat-cat-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -826,16 +936,31 @@
       return
     }
     items = data || []
+    renderSidebarCategorias() // recalcula los contadores ahora que ya hay productos
     aplicarFiltros()
+  }
+
+  function ordenarLista(lista) {
+    const copia = [...lista]
+    if (ordenActual === 'recientes') {
+      copia.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    } else if (ordenActual === 'precio-asc') {
+      copia.sort((a, b) => Number(a.precio_oferta ?? a.precio ?? 0) - Number(b.precio_oferta ?? b.precio ?? 0))
+    } else if (ordenActual === 'precio-desc') {
+      copia.sort((a, b) => Number(b.precio_oferta ?? b.precio ?? 0) - Number(a.precio_oferta ?? a.precio ?? 0))
+    }
+    // 'manual' — se deja tal cual viene de la consulta (columna "orden")
+    return copia
   }
 
   function aplicarFiltros() {
     const q = searchTerm.trim().toLowerCase()
     const vistaPorDefecto = categoriaFiltroActual === null && !q
-    const destacadas = catalogoActual.categorias_destacadas || []
+    const categoriasDestacadas = catalogoActual.categorias_destacadas || []
+    const hayProductosDestacados = items.some(it => it.destacado)
 
-    if (vistaPorDefecto && destacadas.length > 0) {
-      renderGridPorSecciones(destacadas)
+    if (vistaPorDefecto && (categoriasDestacadas.length > 0 || hayProductosDestacados)) {
+      renderGridPorSecciones(categoriasDestacadas)
       return
     }
 
@@ -844,7 +969,15 @@
       const pasaBusqueda = !q || (it.titulo || '').toLowerCase().includes(q)
       return pasaCategoria && pasaBusqueda
     })
-    renderGrid(filtrados)
+    renderGrid(ordenarLista(filtrados))
+  }
+
+  function precioHtml(it, claseTachado, claseBadge) {
+    const tieneOferta = it.precio_oferta !== null && it.precio_oferta !== undefined && it.precio_oferta !== '' && Number(it.precio_oferta) < Number(it.precio || 0)
+    if (tieneOferta) {
+      return `<span class="${claseTachado}">${money(it.precio)}</span><span class="${claseBadge}">${money(it.precio_oferta)}</span>`
+    }
+    return money(it.precio) ? `<span class="${claseBadge}">${money(it.precio)}</span>` : ''
   }
 
   function cardHtml(it, uid) {
@@ -852,20 +985,22 @@
     const puedeEditar = esDueñoActual
     const tieneDosFotos = !!(it.imagen_url && it.imagen_url_2)
     return `
-      <div class="cat-item">
+      <div class="cat-item" data-item-id="${it.id}" onclick="window._catAbrirProducto(${it.id})" style="cursor:pointer">
+        ${puedeEditar ? `<span class="cat-item__grip" title="Arrastrar para reordenar" onclick="event.stopPropagation()">⠿</span>` : ''}
         ${puedeEditar ? `
-          <div class="cat-item__admin-btns">
+          <div class="cat-item__admin-btns" onclick="event.stopPropagation()">
             <button class="cat-item__admin-btn" title="Editar" onclick="window._catEditarItem(${it.id})">✎</button>
             <button class="cat-item__admin-btn" title="Eliminar" onclick="window._catEliminarItem(${it.id})">🗑</button>
           </div>` : ''}
         <div class="cat-item__img-wrap" id="cat-imgwrap-${uid}">
+          ${it.destacado ? `<span class="cat-item__destacado-badge">⭐</span>` : ''}
           ${it.imagen_url
             ? `<img class="cat-item__img cat-item__img--activa" data-idx="0" src="${it.imagen_url}" alt="${it.titulo}"/>`
             : `<div class="cat-item__placeholder">Sin imagen</div>`}
           ${it.imagen_url_2 ? `<img class="cat-item__img" data-idx="1" src="${it.imagen_url_2}" alt="${it.titulo}"/>` : ''}
-          ${money(it.precio) ? `<span class="cat-item__precio-badge">${money(it.precio)}</span>` : ''}
+          ${precioHtml(it, 'cat-item__precio-tachado', 'cat-item__precio-badge')}
           ${tieneDosFotos ? `
-            <div class="cat-item__dots">
+            <div class="cat-item__dots" onclick="event.stopPropagation()">
               <button class="cat-item__dot cat-item__dot--activo" onclick="event.stopPropagation();window._catSwitchImg('${uid}',0)"></button>
               <button class="cat-item__dot" onclick="event.stopPropagation();window._catSwitchImg('${uid}',1)"></button>
             </div>` : ''}
@@ -875,6 +1010,40 @@
           ${it.descripcion ? `<p class="cat-item__desc">${it.descripcion}</p>` : ''}
         </div>
       </div>`
+  }
+
+  // ── Arrastrar y soltar para reordenar (solo para la dueña/dueño) ───
+  function habilitarDragDrop(container) {
+    let arrastrando = null
+    container.querySelectorAll('.cat-item[data-item-id]').forEach(el => {
+      el.setAttribute('draggable', 'true')
+      el.addEventListener('dragstart', () => { arrastrando = el; el.classList.add('cat-item--arrastrando') })
+      el.addEventListener('dragend', () => {
+        if (arrastrando) arrastrando.classList.remove('cat-item--arrastrando')
+        arrastrando = null
+        guardarOrdenDesdeDOM(container)
+      })
+      el.addEventListener('dragover', e => {
+        e.preventDefault()
+        if (!arrastrando || arrastrando === el) return
+        const rect = el.getBoundingClientRect()
+        const antes = e.clientY < rect.top + rect.height / 2
+        container.insertBefore(arrastrando, antes ? el : el.nextSibling)
+      })
+    })
+  }
+
+  async function guardarOrdenDesdeDOM(container) {
+    const ids = Array.from(container.querySelectorAll('.cat-item[data-item-id]')).map(el => Number(el.dataset.itemId))
+    ids.forEach((id, idx) => {
+      const it = items.find(x => x.id === id)
+      if (it) it.orden = idx
+    })
+    try {
+      await Promise.all(ids.map((id, idx) => supabase.from('catalogo_items').update({ orden: idx }).eq('id', id)))
+    } catch (e) {
+      console.error('Error guardando el nuevo orden:', e)
+    }
   }
 
   function renderGrid(lista) {
@@ -896,11 +1065,15 @@
     }
     empty.style.display = 'none'
     grid.innerHTML = lista.map(it => cardHtml(it)).join('')
+    // El arrastre solo tiene sentido con orden manual y viendo la lista completa sin filtrar
+    if (esDueñoActual && ordenActual === 'manual' && lista.length === items.length) habilitarDragDrop(grid)
   }
 
-  // Vista con hasta 3 categorías destacadas como secciones propias, seguidas
-  // siempre de "Todos los productos" con el catálogo completo publicado.
-  function renderGridPorSecciones(destacadas) {
+  // Vista con: sección "Destacados" (productos marcados a mano, hasta 6, con
+  // orden fijo propio que ignora el selector de "Ordenar por"), seguida de
+  // hasta 3 categorías destacadas como secciones, y siempre al final "Todos
+  // los productos" con el catálogo completo publicado.
+  function renderGridPorSecciones(categoriasDestacadas) {
     const grid  = document.getElementById('catItemsGrid')
     const empty = document.getElementById('catItemsEmpty')
     empty.style.display = 'none'
@@ -914,15 +1087,35 @@
     }
 
     let html = ''
-    destacadas.forEach(catId => {
+
+    const productosDestacados = [...items].filter(it => it.destacado).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    if (productosDestacados.length > 0) {
+      html += `<div class="cat-seccion"><h3 class="cat-seccion__titulo">Destacados</h3><div class="cat-grid" id="cat-grid-destacados">${productosDestacados.map(it => cardHtml(it, 'dest-' + it.id)).join('')}</div></div>`
+    }
+
+    categoriasDestacadas.forEach(catId => {
       const cat = categorias.find(c => c.id === catId)
       if (!cat) return
-      const productos = items.filter(it => (it.categoria_ids || []).includes(catId))
+      const productos = ordenarLista(items.filter(it => (it.categoria_ids || []).includes(catId)))
       if (productos.length === 0) return
       html += `<div class="cat-seccion"><h3 class="cat-seccion__titulo">${cat.nombre}</h3><div class="cat-grid">${productos.map(it => cardHtml(it, 'f' + catId + '-' + it.id)).join('')}</div></div>`
     })
-    html += `<div class="cat-seccion"><h3 class="cat-seccion__titulo">Todos los productos</h3><div class="cat-grid">${items.map(it => cardHtml(it, 'all-' + it.id)).join('')}</div></div>`
+    html += `<div class="cat-seccion"><h3 class="cat-seccion__titulo">Todos los productos</h3><div class="cat-grid" id="cat-grid-todos">${ordenarLista(items).map(it => cardHtml(it, 'all-' + it.id)).join('')}</div></div>`
     grid.innerHTML = html
+
+    // "Destacados" siempre se puede reordenar arrastrando (no depende del
+    // selector de "Ordenar por", que ahí ni se aplica).
+    if (esDueñoActual) {
+      const gridDestacados = document.getElementById('cat-grid-destacados')
+      if (gridDestacados) habilitarDragDrop(gridDestacados)
+    }
+    // El "Todos los productos" siempre trae la lista completa sin filtrar — ahí sí se puede
+    // reordenar, pero solo si el orden elegido es "manual" (si están ordenados por precio
+    // o por fecha no tendría sentido dejar arrastrar).
+    if (esDueñoActual && ordenActual === 'manual') {
+      const gridTodos = document.getElementById('cat-grid-todos')
+      if (gridTodos) habilitarDragDrop(gridTodos)
+    }
   }
 
   window._catSwitchImg = function (itemId, idx) {
@@ -974,7 +1167,11 @@
     document.getElementById('catItemId').value = it ? it.id : ''
     document.getElementById('catItemTitulo').value = it ? it.titulo : ''
     document.getElementById('catItemPrecio').value = it && it.precio !== null ? it.precio : ''
+    document.getElementById('catItemPrecioOferta').value = it && it.precio_oferta !== null && it.precio_oferta !== undefined ? it.precio_oferta : ''
     document.getElementById('catItemDesc').value = it ? (it.descripcion || '') : ''
+    document.getElementById('catItemDestacado').checked = it ? !!it.destacado : false
+    const cantidadDestacados = items.filter(x => x.destacado && (!it || x.id !== it.id)).length
+    document.getElementById('catItemDestacadoInfo').textContent = `${cantidadDestacados}/6 publicaciones destacadas usadas.`
     imagenUrlTemp  = it ? (it.imagen_url || '') : ''
     imagenUrlTemp2 = it ? (it.imagen_url_2 || '') : ''
     document.getElementById('catItemPreview').innerHTML  = previewHtml(imagenUrlTemp, 'Subir foto')
@@ -1021,8 +1218,22 @@
     const id = document.getElementById('catItemId').value
     const titulo = document.getElementById('catItemTitulo').value.trim()
     const precioRaw = document.getElementById('catItemPrecio').value
+    const precioOfertaRaw = document.getElementById('catItemPrecioOferta').value
     const descripcion = document.getElementById('catItemDesc').value.trim()
     if (!titulo) { errEl.textContent = 'El título es obligatorio.'; return }
+    if (precioOfertaRaw !== '' && precioRaw !== '' && Number(precioOfertaRaw) >= Number(precioRaw)) {
+      errEl.textContent = 'El precio con descuento tiene que ser menor al precio normal.'
+      return
+    }
+
+    const destacado = document.getElementById('catItemDestacado').checked
+    if (destacado) {
+      const cantidadDestacados = items.filter(x => x.destacado && String(x.id) !== id).length
+      if (cantidadDestacados >= 6) {
+        errEl.textContent = 'Ya tenés 6 publicaciones destacadas — sacá una para poder destacar esta.'
+        return
+      }
+    }
 
     const categoriaIds = Array.from(document.querySelectorAll('#catItemCategoriasChecks input[type="checkbox"]:checked'))
       .map(cb => Number(cb.value))
@@ -1031,10 +1242,12 @@
       catalogo_id: catalogoActual.id,
       titulo,
       precio: precioRaw === '' ? null : Number(precioRaw),
+      precio_oferta: precioOfertaRaw === '' ? null : Number(precioOfertaRaw),
       descripcion: descripcion || null,
       imagen_url: imagenUrlTemp || null,
       imagen_url_2: imagenUrlTemp2 || null,
-      categoria_ids: categoriaIds
+      categoria_ids: categoriaIds,
+      destacado
     }
 
     let error
@@ -1054,6 +1267,102 @@
     if (error) { alert('Error al eliminar: ' + error.message); return }
     await cargarItems()
   }
+
+  // ══════════════════════════════════════════
+  //  VISTA DE PRODUCTO INDIVIDUAL — carrusel + consulta directa por WhatsApp
+  // ══════════════════════════════════════════
+  let productoModalItem = null
+  let productoModalIdx  = 0
+
+  window._catAbrirProducto = function (id) {
+    const it = items.find(x => x.id === id)
+    if (!it) return
+    productoModalItem = it
+    productoModalIdx = 0
+    renderProductoModal()
+    document.getElementById('catModalProducto').classList.add('activo')
+  }
+
+  function renderProductoModal() {
+    const it = productoModalItem
+    const imgs = [it.imagen_url, it.imagen_url_2].filter(Boolean)
+    const dosImgs = imgs.length > 1
+
+    document.getElementById('catProdImgWrap').innerHTML = imgs.length
+      ? `
+        <img class="cat-producto-modal__img" src="${imgs[productoModalIdx]}" alt="${it.titulo}"/>
+        ${dosImgs ? `
+          <button class="cat-producto-modal__arrow cat-producto-modal__arrow--left" onclick="window._catProductoNav(-1)">‹</button>
+          <button class="cat-producto-modal__arrow cat-producto-modal__arrow--right" onclick="window._catProductoNav(1)">›</button>
+          <div class="cat-producto-modal__dots">
+            ${imgs.map((_, i) => `<button class="cat-producto-modal__dot ${i === productoModalIdx ? 'cat-producto-modal__dot--activo' : ''}" onclick="window._catProductoIrA(${i})"></button>`).join('')}
+          </div>` : ''}
+      `
+      : `<div class="cat-item__placeholder" style="width:100%;height:100%">Sin imagen</div>`
+
+    document.getElementById('catProdTitulo').textContent = it.titulo
+
+    const precioEl = document.getElementById('catProdPrecio')
+    const precioContenido = precioHtml(it, 'cat-producto-modal__precio-tachado', '')
+    if (precioContenido) { precioEl.innerHTML = precioContenido; precioEl.style.display = 'block' } else { precioEl.style.display = 'none' }
+
+    const descEl = document.getElementById('catProdDesc')
+    if (it.descripcion) { descEl.textContent = it.descripcion; descEl.style.display = 'block' } else { descEl.style.display = 'none' }
+
+    const wsp = document.getElementById('catProdWhatsapp')
+    if (catalogoActual.whatsapp) {
+      const msg = encodeURIComponent(`Hola! Te consulto por "${it.titulo}"`)
+      wsp.href = 'https://wa.me/' + catalogoActual.whatsapp.replace(/[^0-9]/g, '') + '?text=' + msg
+      wsp.style.display = 'inline-flex'
+    } else {
+      wsp.style.display = 'none'
+    }
+  }
+
+  window._catProductoNav = function (delta) {
+    const imgs = [productoModalItem.imagen_url, productoModalItem.imagen_url_2].filter(Boolean)
+    productoModalIdx = (productoModalIdx + delta + imgs.length) % imgs.length
+    renderProductoModal()
+  }
+  window._catProductoIrA = function (idx) { productoModalIdx = idx; renderProductoModal() }
+
+  document.getElementById('catBtnCerrarProducto').addEventListener('click', () =>
+    document.getElementById('catModalProducto').classList.remove('activo'))
+
+  // ══════════════════════════════════════════
+  //  CÓDIGO QR DEL CATÁLOGO
+  // ══════════════════════════════════════════
+  async function cargarLibreriaQR() {
+    if (window.QRCode) return
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'
+      s.onload = resolve
+      s.onerror = () => reject(new Error('No se pudo cargar la librería de QR'))
+      document.head.appendChild(s)
+    })
+  }
+
+  document.getElementById('catBtnQR').addEventListener('click', async () => {
+    const errEl = document.getElementById('catQRError')
+    errEl.textContent = ''
+    document.getElementById('catQRImg').src = ''
+    const url = window.location.origin + window.location.pathname + '?slug=' + encodeURIComponent(catalogoActual.slug)
+    document.getElementById('catQRUrl').textContent = url
+    document.getElementById('catModalQR').classList.add('activo')
+    try {
+      await cargarLibreriaQR()
+      const dataUrl = await window.QRCode.toDataURL(url, { width: 440, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      document.getElementById('catQRImg').src = dataUrl
+      const btnDescargar = document.getElementById('catBtnDescargarQR')
+      btnDescargar.href = dataUrl
+      btnDescargar.download = 'qr-' + catalogoActual.slug + '.png'
+    } catch (e) {
+      errEl.textContent = 'No se pudo generar el QR: ' + (e.message || String(e))
+    }
+  })
+  document.getElementById('catBtnCerrarQR').addEventListener('click', () =>
+    document.getElementById('catModalQR').classList.remove('activo'))
 
   // ══════════════════════════════════════════
   //  AUTOSERVICIO — "¿Querés tu propio catálogo?" desde la vitrina pública
