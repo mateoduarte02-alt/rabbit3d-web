@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Catálogos — La Madriguera</title>
+  <meta name="robots" content="noindex, nofollow"/>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="../styles.css"/>
+  <style>
+    body { background: var(--bg); min-height: 100vh; }
+    .cat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.25rem 2rem; border-bottom: 1px solid var(--border);
+    }
+    .cat-header__brand { display: flex; align-items: center; gap: .6rem; font-family: var(--font-head); color: var(--text); font-weight: 700; letter-spacing: .05em; text-decoration: none; }
+    .cat-header__brand img { width: 32px; height: 32px; }
+    .cat-volver { color: var(--muted); font-size: .8rem; text-decoration: none; }
+    .cat-volver:hover { color: var(--cyan); }
+    .cat-main { max-width: 1440px; margin: 0 auto; padding: 2.6rem clamp(1.5rem, 4vw, 3.5rem) 5rem; }
+    .cat-intro { text-align: center; margin-bottom: 2.5rem; }
+    .cat-intro h1 { font-family: var(--font-head); color: var(--cyan); font-size: 1.4rem; letter-spacing: .04em; margin: 0 0 .6rem; }
+    .cat-intro p { color: var(--muted); font-size: .85rem; max-width: 560px; margin: 0 auto; line-height: 1.6; }
+
+    .cat-login { max-width: 380px; margin: 3rem auto; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.6rem; }
+    .cat-login h2 { font-family: var(--font-head); color: var(--cyan); font-size: 1rem; margin: 0 0 1rem; text-align: center; }
+
+    .cat-admin-toolbar { display:flex; justify-content:flex-end; gap:.6rem; margin-bottom: 1.2rem; }
+    .cat-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .cat-admin-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; cursor: pointer; transition: border-color .2s, transform .2s; position: relative; }
+    .cat-admin-card:hover { border-color: var(--cyan-mid); transform: translateY(-2px); }
+    .cat-admin-card__eliminar {
+      position: absolute; top: .7rem; right: .7rem; z-index: 2; width: 26px; height: 26px; border-radius: 7px;
+      background: rgba(0,0,0,.35); border: 1px solid var(--border); color: var(--muted); display: flex;
+      align-items: center; justify-content: center; cursor: pointer; font-size: .75rem; transition: background .15s, color .15s;
+    }
+    .cat-admin-card__eliminar:hover { background: #d94060; color: #fff; border-color: #d94060; }
+    .cat-admin-card__logo { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; background: var(--bg3); margin-bottom: .8rem; }
+    .cat-admin-card__logo-placeholder {
+      width: 56px; height: 56px; border-radius: 12px; margin-bottom: .8rem; background: var(--bg3); color: var(--cyan);
+      display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-size: 1.3rem; font-weight: 700;
+    }
+    .cat-admin-card__nombre { color: var(--text); font-weight: 700; font-size: .9rem; margin: 0 0 .25rem; }
+    .cat-admin-card__owner { color: var(--muted); font-size: .72rem; margin: 0 0 .5rem; }
+    .cat-admin-card__meta { display: flex; align-items: center; justify-content: space-between; font-size: .7rem; }
+    .cat-admin-card__estado { padding: .15rem .5rem; border-radius: 20px; font-weight: 700; }
+    .cat-admin-card__estado--pub { background: rgba(21,154,156,.18); color: var(--cyan); }
+    .cat-admin-card__estado--priv { background: rgba(255,255,255,.06); color: var(--muted); }
+
+    .cat-stats-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .cat-stats-table th {
+      text-align: left; font-family: var(--font-head); font-size: .62rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted); padding: .6rem .7rem; border-bottom: 1px solid var(--border);
+    }
+    .cat-stats-table td { padding: .65rem .7rem; border-bottom: 1px solid var(--border); color: var(--text); }
+    .cat-stats-table tr:hover td { background: var(--bg3); }
+    .cat-stats-table td.cat-stats-muted { color: var(--muted); }
+
+    /* ── Topbar tipo tienda: logo, buscador, login ──────────────── */
+    .cat-topbar {
+      display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+      padding: 1.3rem 1.8rem; margin-bottom: 2.4rem;
+    }
+    .cat-topbar__brand { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+    .cat-topbar__brand img { width: 136px; height: 136px; border-radius: 20px; object-fit: cover; background: var(--bg3); border: 2px solid var(--border); }
+    .cat-topbar__brand span { font-family: var(--font-head); font-weight: 700; color: var(--text); font-size: 1.25rem; }
+    .cat-topbar__search { flex: 0 1 320px; min-width: 160px; margin-left: auto; }
+    .cat-topbar__search input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+      padding: .8rem 1.1rem; color: var(--text); font-size: .88rem; font-family: var(--font-body);
+    }
+    .cat-topbar__search input::placeholder { color: var(--muted); }
+    .cat-topbar__search input:focus { outline: none; border-color: var(--cyan); }
+    .cat-topbar__actions { display: flex; align-items: center; gap: .6rem; flex-shrink: 0; }
+    .cat-topbar__action-wrap { position: relative; }
+    .cat-topbar__icon-btn {
+      width: 50px; height: 50px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.3rem;
+      transition: border-color .15s, color .15s;
+    }
+    .cat-topbar__icon-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+    .cat-login-dropdown {
+      position: absolute; top: calc(100% + .6rem); right: 0; width: 230px; z-index: 60;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1rem; box-shadow: 0 12px 32px rgba(0,0,0,.4);
+    }
+    .cat-login-dropdown .form-input { margin-bottom: .55rem; font-size: .8rem; padding: .5rem .7rem; }
+    .cat-login-dropdown__email { font-size: .7rem; color: var(--muted); margin: 0 0 .7rem; word-break: break-all; }
+    .cat-contacto-fila {
+      display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: var(--text); text-decoration: none;
+      padding: .55rem .7rem; border-radius: 8px; background: var(--bg3); transition: background .15s, color .15s;
+    }
+    .cat-contacto-fila:hover { background: var(--cyan-dim); color: var(--cyan); }
+
+    /* ── Layout: sidebar de categorías + contenido ──────────────── */
+    .cat-layout { display: flex; gap: 2.8rem; align-items: flex-start; }
+    .cat-sidebar { width: 240px; flex-shrink: 0; padding-top: .2rem; }
+    .cat-sidebar__section { margin-bottom: 2.2rem; }
+    .cat-sidebar__titulo { font-family: var(--font-head); font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 .9rem; }
+    .cat-sidebar__lista { display: flex; flex-direction: column; gap: .15rem; }
+    .cat-cat-btn { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--muted); font-size: .86rem; padding: .55rem .7rem; border-radius: 8px; cursor: pointer; transition: background .15s, color .15s; font-family: var(--font-body); }
+    .cat-cat-btn:hover { background: var(--bg3); color: var(--text); }
+    .cat-cat-btn--activo { background: var(--cyan-dim); color: var(--cyan); font-weight: 700; }
+    .cat-sidebar__tool { display: flex; align-items: center; gap: .5rem; font-size: .78rem; color: var(--muted); text-decoration: none; padding: .55rem .6rem; border-radius: 8px; transition: background .15s, color .15s; }
+    .cat-sidebar__tool:hover { background: var(--bg3); color: var(--cyan); }
+
+    .cat-content { flex: 1; min-width: 0; }
+    .cat-content__header { margin-bottom: 2.2rem; }
+    .cat-content__header h1 { font-family: var(--font-head); font-size: 1.75rem; color: var(--text); margin: 0 0 .6rem; }
+    .cat-content__header p { color: var(--muted); font-size: .9rem; line-height: 1.65; margin: 0; max-width: 680px; }
+
+    @media (max-width: 780px) {
+      .cat-layout { flex-direction: column; gap: 1.8rem; }
+      .cat-sidebar { width: 100%; }
+      .cat-sidebar__lista { flex-direction: row; flex-wrap: wrap; }
+      .cat-cat-btn { width: auto; }
+    }
+
+    /* Grid de productos */
+    .cat-seccion { margin-bottom: 2.6rem; }
+    .cat-seccion__titulo {
+      font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; color: var(--text);
+      margin: 0 0 1.1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border);
+    }
+    .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; }
+    .cat-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; transition: border-color .2s, transform .2s, box-shadow .2s; }
+    .cat-item:hover { border-color: var(--cyan-mid); transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,.28); }
+    .cat-item__img-wrap { position: relative; width: 100%; aspect-ratio: 1/1; background: var(--bg3); overflow: hidden; }
+    .cat-item__img { width: 100%; height: 100%; object-fit: cover; display: block; position: absolute; inset: 0; opacity: 0; transition: opacity .25s; }
+    .cat-item__img--activa { opacity: 1; }
+    .cat-item__placeholder { width: 100%; height: 100%; display:flex; align-items:center; justify-content:center; color: var(--muted); font-size: .7rem; }
+    .cat-item__dots { position: absolute; bottom: .5rem; left: 50%; transform: translateX(-50%); display: flex; gap: .3rem; z-index: 2; }
+    .cat-item__dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.4); border: none; cursor: pointer; padding: 0; transition: background .15s, transform .15s; }
+    .cat-item__dot--activo { background: #fff; transform: scale(1.25); }
+    .cat-item__precio-badge {
+      position: absolute; bottom: .5rem; left: .5rem; z-index: 2; background: rgba(8,20,28,.78);
+      backdrop-filter: blur(2px); color: var(--cyan); font-weight: 700; font-size: .74rem;
+      padding: .25rem .55rem; border-radius: 20px; border: 1px solid rgba(255,255,255,.08);
+    }
+    .cat-item__body { padding: .75rem .85rem .9rem; }
+    .cat-item__titulo { color: var(--text); font-size: .84rem; font-weight: 700; margin: 0 0 .25rem; }
+    .cat-item__desc { color: var(--muted); font-size: .72rem; margin: 0; line-height: 1.45; }
+    .cat-item__admin-btns { position: absolute; top: .45rem; right: .45rem; display: flex; gap: .3rem; z-index: 3; }
+    .cat-item__admin-btn { background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.1); color: #fff; border-radius: 7px; width: 27px; height: 27px; display:flex; align-items:center; justify-content:center; cursor: pointer; font-size: .78rem; transition: background .15s; }
+    .cat-item__admin-btn:hover { background: var(--cyan); color: #06232a; }
+    .cat-empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 3rem 1rem; }
+
+    /* Pie de página — único lugar donde se nota que corre en La Madriguera */
+    .cat-site-footer { text-align: center; padding: 2.8rem 0 1.5rem; }
+    .cat-site-footer__credito { color: var(--muted); font-size: .72rem; margin: 0 0 .6rem; opacity: .8; }
+    .cat-site-footer__credito a { color: inherit; text-decoration: none; }
+    .cat-site-footer__credito a:hover { color: var(--cyan); }
+    .cat-site-footer__cta {
+      display: inline-block; color: var(--cyan); font-size: .78rem; font-weight: 700; text-decoration: none;
+      padding: .5rem 1.1rem; border: 1px solid var(--cyan-mid); border-radius: 30px; transition: background .15s, transform .15s;
+    }
+    .cat-site-footer__cta:hover { background: var(--cyan-dim); transform: translateY(-1px); }
+
+    /* Globito de WhatsApp flotante — como cualquier tienda online */
+    .cat-whatsapp-bubble {
+      position: fixed; bottom: 1.4rem; left: 1.4rem; width: 56px; height: 56px; border-radius: 50%;
+      background: #25D366; color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; text-decoration: none; box-shadow: 0 6px 18px rgba(37,211,102,.4); z-index: 400;
+      transition: transform .15s;
+    }
+    .cat-whatsapp-bubble:hover { transform: scale(1.08); }
+
+    /* Panel flotante de edición — visible solo para la dueña/admin, siempre con la
+       estética de La Madriguera (no cambia con el tema del catálogo) para que quede
+       claro que es una herramienta, no parte del sitio público. Abajo a la DERECHA;
+       el globito de WhatsApp quedó a la izquierda para no superponerse. */
+    .cat-owner-bar {
+      display: none; position: fixed; bottom: 1.4rem; right: 1.4rem; z-index: 500;
+      flex-direction: column; background: #00111c; border: 1px solid rgba(21,154,156,.5);
+      border-radius: 14px; width: 210px; box-shadow: 0 10px 36px rgba(0,0,0,.55), 0 0 0 1px rgba(21,154,156,.15);
+      overflow: hidden;
+    }
+    .cat-owner-bar__header {
+      display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+      padding: .7rem .9rem; background: rgba(21,154,156,.14); border-bottom: 1px solid rgba(21,154,156,.28);
+    }
+    .cat-owner-bar__title {
+      font-family: var(--font-head); font-size: .6rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: #5de8ea;
+    }
+    .cat-owner-bar__estado { font-size: .64rem; color: #9fd4d6; font-weight: 700; white-space: nowrap; }
+    .cat-owner-bar__body { display: flex; flex-direction: column; gap: .35rem; padding: .7rem; }
+    .cat-owner-bar .btn {
+      width: 100%; justify-content: center; font-size: .7rem; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.14); color: #d0eef2;
+    }
+    .cat-owner-bar .btn:hover { background: rgba(21,154,156,.18); }
+    .cat-owner-bar .btn--primary { background: #159A9C; border-color: #159A9C; color: #fff; }
+    .cat-owner-bar .btn--primary:hover { background: transparent; color: #5de8ea; }
+    .cat-owner-bar__sub {
+      font-family: var(--font-head); font-size: .56rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+      color: #5de8ea; opacity: .75; margin: .5rem 0 .4rem; padding-top: .6rem; border-top: 1px solid rgba(255,255,255,.08);
+    }
+    .cat-owner-bar__tool {
+      display: block; width: 100%; text-align: left; font-size: .68rem; color: #d0eef2; text-decoration: none;
+      padding: .4rem .5rem; border-radius: 6px; transition: background .15s; background: none; border: none;
+      cursor: pointer; font-family: var(--font-body);
+    }
+    .cat-owner-bar__tool:hover { background: rgba(21,154,156,.18); color: #5de8ea; }
+    @media (max-width: 640px) { .cat-owner-bar { width: 170px; right: .7rem; bottom: .7rem; } }
+
+    .cat-form { max-width: 460px; }
+
+    .cat-upload { border: 2px dashed var(--border); border-radius: 12px; background: var(--bg3); min-height: 150px; cursor: pointer; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; transition: border-color .2s, background .2s, transform .15s; }
+    .cat-upload:hover { border-color: var(--cyan); background: rgba(21,154,156,.08); transform: translateY(-1px); }
+    .cat-upload:active { transform: translateY(0); }
+    .cat-upload__inner { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 1.2rem; }
+    .cat-upload__btn { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; background: var(--cyan); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 3px 12px rgba(21,154,156,.4); }
+    .cat-upload__texto { font-size: .82rem; font-weight: 700; color: var(--text); }
+    .cat-upload__sub { font-size: .68rem; color: var(--muted); }
+    .cat-upload__img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cat-upload--sm { min-height: 110px; }
+    .cat-upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+    .cat-upload-row .form-label { font-size: .68rem; margin-bottom: .3rem; opacity: .8; }
+
+    .cat-color-field { display: flex; align-items: center; gap: .7rem; }
+    .cat-color-field input[type="color"] { width: 48px; height: 38px; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; padding: 2px; }
+    .cat-color-field span { font-size: .72rem; color: var(--muted); }
+
+    .cat-paletas { display: flex; gap: .55rem; flex-wrap: wrap; }
+    .cat-paleta-btn { border: 2px solid transparent; border-radius: 10px; padding: .35rem; cursor: pointer; background: none; display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 68px; transition: border-color .15s, transform .15s; }
+    .cat-paleta-btn:hover { transform: translateY(-2px); }
+    .cat-paleta-btn--activa { border-color: var(--cyan); }
+    .cat-paleta-swatch { width: 100%; height: 32px; border-radius: 7px; display: flex; overflow: hidden; border: 1px solid rgba(255,255,255,.12); }
+    .cat-paleta-swatch span { flex: 1; }
+    .cat-paleta-nombre { font-size: .58rem; color: var(--muted); text-align: center; line-height: 1.25; }
+
+    .cat-tema-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+    .cat-color-mini { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+    .cat-color-mini label { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .cat-color-mini input[type="color"] { width: 100%; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; padding: 2px; }
+
+    .cat-preview-box { background: var(--bg); border-radius: 14px; padding: 1.1rem; border: 1px solid rgba(255,255,255,.08); }
+    .cat-preview-hero { display: flex; gap: .7rem; align-items: center; margin-bottom: .9rem; }
+    .cat-preview-logo { width: 38px; height: 38px; border-radius: 10px; background: var(--cyan); flex-shrink: 0; }
+    .cat-preview-nombre { font-weight: 700; font-size: .82rem; margin: 0 0 .2rem; color: var(--text); }
+    .cat-preview-desc { font-size: .68rem; color: var(--muted); margin: 0; }
+    .cat-preview-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; width: 120px; margin-bottom: .8rem; }
+    .cat-preview-card-img { width: 100%; height: 74px; background: var(--bg3); }
+    .cat-preview-card-body { padding: .45rem .55rem; }
+    .cat-preview-card-titulo { font-size: .68rem; font-weight: 700; margin: 0 0 .35rem; color: var(--text); }
+    .cat-preview-badge { display: inline-block; background: var(--cyan); color: #fff; font-size: .6rem; font-weight: 700; padding: .15rem .5rem; border-radius: 20px; }
+    .cat-preview-btn { background: var(--cyan); color: #fff; border: none; border-radius: 8px; padding: .5rem 1.1rem; font-size: .74rem; font-weight: 700; cursor: default; }
+
+    /* Chips de categorías dentro del modal de producto */
+    .cat-check-pill { display: inline-flex; align-items: center; gap: .35rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: .35rem .75rem; font-size: .74rem; color: var(--muted); cursor: pointer; }
+    .cat-check-pill input { accent-color: var(--cyan); }
+    .cat-check-pill--vacio { font-style: italic; opacity: .7; cursor: default; }
+
+    /* Filas de categorías dentro del modal de gestión */
+    .cat-cat-row { display: flex; gap: .5rem; align-items: center; }
+    .cat-cat-row input.form-input { flex: 1; }
+    .cat-cat-row button { flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+  <header class="cat-header" id="catTopHeader">
+    <a href="../index.html" class="cat-header__brand">
+      <img src="../favicon.svg" alt=""/>
+      LA MADRIGUERA
+    </a>
+    <a href="../index.html" class="cat-volver">← Volver al sitio</a>
+  </header>
+
+  <main class="cat-main">
+
+    <div id="catLogin" class="cat-login" style="display:none">
+      <h2>Iniciar sesión</h2>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" id="catLoginEmail" class="form-input" placeholder="tu@email.com"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contraseña</label>
+        <input type="password" id="catLoginPass" class="form-input" placeholder="••••••••"/>
+      </div>
+      <p class="form-error" id="catLoginError"></p>
+      <button class="btn btn--primary btn--full" id="catBtnLogin">Ingresar</button>
+    </div>
+
+    <div id="catVistaAdmin" style="display:none">
+      <div class="cat-intro">
+        <h1>Catálogos</h1>
+        <p>Estos son los emprendimientos que armaron su catálogo con La Madriguera.</p>
+      </div>
+      <div class="cat-admin-toolbar">
+        <button class="btn btn--primary btn--sm" id="catBtnCrearElMio">¿Tenés un emprendimiento? Creá tu catálogo</button>
+      </div>
+      <div class="cat-admin-grid" id="catAdminGrid"></div>
+      <p class="cat-empty" id="catAdminEmpty" style="display:none">Todavía no hay catálogos publicados.</p>
+    </div>
+
+    <!-- VISTA DE UN CATÁLOGO: pensada para que se sienta como el sitio propio del
+         dueño — sin la barra de La Madriguera arriba, solo un crédito chico al pie. -->
+    <div id="catVistaCatalogo" style="display:none">
+
+      <div class="cat-topbar">
+        <div class="cat-topbar__brand">
+          <img id="catTopLogo" style="display:none"/>
+          <span id="catTopNombre"></span>
+        </div>
+        <div class="cat-topbar__search">
+          <input type="text" id="catBuscador" placeholder="Buscar productos..."/>
+        </div>
+        <div class="cat-topbar__actions">
+          <div class="cat-topbar__action-wrap">
+            <button class="cat-topbar__icon-btn" id="catBtnContacto" title="Contacto" style="display:none">💬</button>
+            <div class="cat-login-dropdown" id="catContactoDropdown" style="display:none">
+              <p style="font-weight:700;font-size:.82rem;margin:0 0 .8rem;color:var(--text)">Contacto</p>
+              <div id="catContactoLista" style="display:flex;flex-direction:column;gap:.5rem"></div>
+            </div>
+          </div>
+          <div class="cat-topbar__action-wrap">
+            <button class="cat-topbar__icon-btn" id="catBtnLoginIcon" title="Iniciar sesión">👤</button>
+            <div class="cat-login-dropdown" id="catLoginDropdown" style="display:none">
+              <div id="catLoginDropdownForm">
+                <input type="email" id="catTopLoginEmail" class="form-input" placeholder="Email"/>
+                <input type="password" id="catTopLoginPass" class="form-input" placeholder="Contraseña"/>
+                <p class="form-error" id="catTopLoginError"></p>
+                <button class="btn btn--primary btn--full btn--sm" id="catBtnTopLogin">Ingresar</button>
+              </div>
+              <div id="catLoginDropdownSesion" style="display:none">
+                <p class="cat-login-dropdown__email" id="catSesionEmailLabel"></p>
+                <button class="btn btn--sm btn--full" id="catBtnLogout">Cerrar sesión</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cat-layout">
+        <aside class="cat-sidebar">
+          <div class="cat-sidebar__section">
+            <p class="cat-sidebar__titulo">Categorías</p>
+            <div class="cat-sidebar__lista" id="catCategoriasLista"></div>
+          </div>
+        </aside>
+
+        <div class="cat-content">
+          <div class="cat-content__header">
+            <h1 id="catDetNombre"></h1>
+            <p id="catDetDesc"></p>
+          </div>
+          <div id="catItemsGrid" class="cat-grid"></div>
+          <p class="cat-empty" id="catItemsEmpty" style="display:none">Todavía no hay productos cargados.</p>
+        </div>
+      </div>
+
+      <footer class="cat-site-footer">
+        <p class="cat-site-footer__credito">Catálogo creado por <strong>Mateo Duarte</strong> — <a href="../index.html">La Madriguera</a></p>
+        <a href="catalogos.html" class="cat-site-footer__cta">¿Te gustaría crear tu propio catálogo? Hacé clic acá</a>
+      </footer>
+    </div>
+
+    <p class="cat-empty" id="catMensajeGeneral" style="display:none"></p>
+  </main>
+
+  <!-- Globito de WhatsApp — visible para cualquiera si el dueño cargó el número -->
+  <a class="cat-whatsapp-bubble" id="catWhatsappBtn" style="display:none" target="_blank" title="Contactar por WhatsApp">💬</a>
+
+  <!-- Panel flotante de edición — solo lo ve la dueña o el admin, nunca un visitante -->
+  <div class="cat-owner-bar" id="catOwnerBar">
+    <div class="cat-owner-bar__header">
+      <span class="cat-owner-bar__title">🐇 Panel de creador</span>
+      <span class="cat-owner-bar__estado" id="catEstadoLabel"></span>
+    </div>
+    <div class="cat-owner-bar__body">
+      <button class="btn btn--primary" id="catBtnNuevoItem">+ Agregar producto</button>
+      <button class="btn" id="catBtnGestionarCategorias">🏷️ Categorías</button>
+      <button class="btn" id="catBtnTogglePublicado"></button>
+      <button class="btn" id="catBtnEditarCatalogo">✎ Editar datos</button>
+    </div>
+    <div class="cat-owner-bar__body" id="catHerramientasSection" style="display:none;padding-top:0">
+      <p class="cat-owner-bar__sub">Herramientas de emprendedor</p>
+      <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-tarjetas')">💌 Tarjetas de agradecimiento</button>
+      <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-presupuesto')">📄 Generador de presupuestos</button>
+      <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-fotoproducto')">🖼 Cambiar fondo de producto</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="catModalCatalogo">
+    <div class="modal">
+      <button class="modal__close" id="catBtnCerrarModalCatalogo">✕</button>
+      <h2 class="modal__title" id="catModalCatalogoTitulo">Nuevo catálogo</h2>
+      <input type="hidden" id="catCatalogoId"/>
+      <div class="form-group" id="catCatalogoEmailGroup">
+        <label class="form-label">Email de la dueña/dueño (ya debe tener cuenta en el sitio)</label>
+        <input type="email" id="catCatalogoEmail" class="form-input" placeholder="ejemplo@email.com"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre del emprendimiento</label>
+        <input type="text" id="catCatalogoNombre" class="form-input" placeholder="Ej: Cerámica Silvia"/>
+      </div>
+      <div class="form-group" id="catCatalogoSlugGroup">
+        <label class="form-label">Slug (para la URL — solo letras, números y guiones)</label>
+        <input type="text" id="catCatalogoSlug" class="form-input" placeholder="ceramica-silvia"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción</label>
+        <textarea id="catCatalogoDesc" class="form-input form-textarea" placeholder="De qué se trata..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Logo</label>
+        <div class="cat-upload" id="catLogoUploadWrap">
+          <div class="cat-upload__inner" id="catLogoPreview">
+            <span class="cat-upload__btn">↑</span>
+            <span class="cat-upload__texto">Subir logo</span>
+            <span class="cat-upload__sub">JPG, PNG o WEBP</span>
+          </div>
+        </div>
+        <input type="file" id="catLogoFile" accept="image/*" style="display:none"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Paletas de ejemplo</label>
+        <div class="cat-paletas" id="catPaletas"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Personalizar cada color</label>
+        <div class="cat-tema-grid">
+          <div class="cat-color-mini"><label>Fondo</label><input type="color" id="temaBg"/></div>
+          <div class="cat-color-mini"><label>Tarjetas</label><input type="color" id="temaCard"/></div>
+          <div class="cat-color-mini"><label>Acento</label><input type="color" id="temaAccent"/></div>
+          <div class="cat-color-mini"><label>Texto</label><input type="color" id="temaText"/></div>
+          <div class="cat-color-mini"><label>Texto 2°</label><input type="color" id="temaMuted"/></div>
+          <div class="cat-color-mini"><label>Bordes</label><input type="color" id="temaBorder"/></div>
+        </div>
+        <button class="btn btn--sm" id="catBtnResetTema" type="button" style="margin-top:.6rem">↺ Restablecer al estilo de La Madriguera</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Vista previa</label>
+        <div class="cat-preview-box" id="catPreview">
+          <div class="cat-preview-hero">
+            <div class="cat-preview-logo"></div>
+            <div>
+              <p class="cat-preview-nombre">Tu Emprendimiento</p>
+              <p class="cat-preview-desc">Así se va a ver la descripción de tu catálogo.</p>
+            </div>
+          </div>
+          <div class="cat-preview-card">
+            <div class="cat-preview-card-img"></div>
+            <div class="cat-preview-card-body">
+              <p class="cat-preview-card-titulo">Producto de ejemplo</p>
+              <span class="cat-preview-badge">$1.500</span>
+            </div>
+          </div>
+          <button class="cat-preview-btn" type="button">Botón de ejemplo</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Redes y contacto</label>
+        <input type="text" id="catCatalogoWhatsapp" class="form-input" placeholder="WhatsApp: 5491122334455" style="margin-bottom:.6rem"/>
+        <input type="text" id="catCatalogoInstagram" class="form-input" placeholder="Instagram: @tu_usuario o link completo" style="margin-bottom:.6rem"/>
+        <div style="display:flex;gap:.6rem">
+          <input type="text" id="catCatalogoOtroLabel" class="form-input" placeholder="Otro — etiqueta (ej: Tienda MercadoLibre)"/>
+          <input type="text" id="catCatalogoOtroUrl" class="form-input" placeholder="Link"/>
+        </div>
+      </div>
+      <p class="form-error" id="catCatalogoError"></p>
+      <button class="btn btn--primary btn--full" id="catBtnGuardarCatalogo">Guardar</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="catModalItem">
+    <div class="modal">
+      <button class="modal__close" id="catBtnCerrarModalItem">✕</button>
+      <h2 class="modal__title" id="catModalItemTitulo">Nuevo producto</h2>
+      <input type="hidden" id="catItemId"/>
+      <div class="form-group">
+        <label class="form-label">Fotos (hasta 2)</label>
+        <div class="cat-upload-row">
+          <div>
+            <label class="form-label">Foto 1</label>
+            <div class="cat-upload cat-upload--sm" id="catItemUploadWrap">
+              <div class="cat-upload__inner" id="catItemPreview">
+                <span class="cat-upload__btn">↑</span>
+                <span class="cat-upload__texto">Subir foto</span>
+              </div>
+            </div>
+            <input type="file" id="catItemFile" accept="image/*" style="display:none"/>
+          </div>
+          <div>
+            <label class="form-label">Foto 2 (opcional)</label>
+            <div class="cat-upload cat-upload--sm" id="catItemUploadWrap2">
+              <div class="cat-upload__inner" id="catItemPreview2">
+                <span class="cat-upload__btn">↑</span>
+                <span class="cat-upload__texto">Subir foto</span>
+              </div>
+            </div>
+            <input type="file" id="catItemFile2" accept="image/*" style="display:none"/>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Título</label>
+        <input type="text" id="catItemTitulo" class="form-input" placeholder="Nombre del producto"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categorías</label>
+        <div id="catItemCategoriasChecks" style="display:flex;flex-wrap:wrap;gap:.5rem"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Precio (opcional)</label>
+        <input type="number" id="catItemPrecio" class="form-input" placeholder="0.00" step="0.01"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción (opcional)</label>
+        <textarea id="catItemDesc" class="form-input form-textarea" placeholder="Breve descripción..."></textarea>
+      </div>
+      <p class="form-error" id="catItemError"></p>
+      <button class="btn btn--primary btn--full" id="catBtnGuardarItem">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: gestionar categorías del catálogo -->
+  <!-- MODAL: estadísticas de catálogos (solo admin) -->
+  <div class="modal-overlay" id="catModalEstadisticas">
+    <div class="modal" style="max-width:760px;width:95%">
+      <button class="modal__close" id="catBtnCerrarEstadisticas">✕</button>
+      <h2 class="modal__title">📊 Estadísticas de catálogos</h2>
+      <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">Quiénes crearon catálogos, cuándo, y cuántas publicaciones subieron.</p>
+      <div style="max-height:65vh;overflow:auto">
+        <table class="cat-stats-table">
+          <thead>
+            <tr>
+              <th>Emprendimiento</th>
+              <th>Dueño/a</th>
+              <th>Catálogo creado</th>
+              <th>Publicaciones</th>
+              <th>Última publicación</th>
+            </tr>
+          </thead>
+          <tbody id="catEstadisticasBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="catModalCategorias">
+    <div class="modal">
+      <button class="modal__close" id="catBtnCerrarModalCategorias">✕</button>
+      <h2 class="modal__title">Categorías</h2>
+      <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">Creá las categorías que quieras (ej: Rol, Decoración, Juegos de mesa) y luego asignalas a cada producto. Con la ★ podés destacar hasta 3 como secciones propias arriba de "Todos los productos" en la página del catálogo — el orden en que las destaques es el orden en que aparecen.</p>
+      <div id="catCategoriasAdminLista" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.1rem"></div>
+      <div class="cat-cat-row">
+        <input type="text" id="catNuevaCategoriaInput" class="form-input" placeholder="Nombre de categoría nueva"/>
+        <button class="btn btn--primary btn--sm" id="catBtnAgregarCategoria">Agregar</button>
+      </div>
+      <p class="form-error" id="catCategoriaError"></p>
+    </div>
+  </div>
+
+  <!-- MODAL: autoservicio — cualquier visitante puede crear su cuenta y su catálogo -->
+  <div class="modal-overlay" id="catModalCrearPropio">
+    <div class="modal">
+      <button class="modal__close" id="catBtnCerrarCrearPropio">✕</button>
+      <h2 class="modal__title">Creá tu propio catálogo</h2>
+
+      <div id="catCrearPropioAuth">
+        <div style="display:flex;gap:.5rem;margin-bottom:1.1rem">
+          <button class="btn btn--sm" id="catCPTabLogin">Ya tengo cuenta</button>
+          <button class="btn btn--sm" id="catCPTabRegistro">Crear cuenta</button>
+        </div>
+        <div id="catCPPanelLogin">
+          <div class="form-group"><input type="email" id="catCPEmail" class="form-input" placeholder="Email"/></div>
+          <div class="form-group"><input type="password" id="catCPPass" class="form-input" placeholder="Contraseña"/></div>
+          <button class="btn btn--primary btn--full" id="catCPBtnLogin">Ingresar</button>
+        </div>
+        <div id="catCPPanelRegistro" style="display:none">
+          <div class="form-group"><input type="text" id="catCPRegNombre" class="form-input" placeholder="Tu nombre"/></div>
+          <div class="form-group"><input type="email" id="catCPRegEmail" class="form-input" placeholder="Email"/></div>
+          <div class="form-group"><input type="password" id="catCPRegPass" class="form-input" placeholder="Contraseña (mín. 6 caracteres)"/></div>
+          <button class="btn btn--primary btn--full" id="catCPBtnRegistro">Crear cuenta</button>
+        </div>
+        <p class="form-error" id="catCPAuthError"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       HERRAMIENTAS DE EMPRENDEDOR — copiadas de index.html.
+       Solo accesibles desde el Panel de creador (dueño/admin).
+       Los modales "Potenciador", "Costos" y "Orden de tarjetas" van
+       ocultos y sin botón: tarjetas.js los referencia internamente y
+       falla al cargar si no existen en el DOM, aunque no se usen acá.
+       ═══════════════════════════════════════════════════ -->
+
+  <div class="modal-overlay" id="modal-tarjetas" style="display:none">
+    <div class="modal modal-tarjetas">
+      <button class="modal__close" onclick="cerrarEmprendedor('modal-tarjetas')">✕</button>
+      <h2 class="modal__title">💌 Tarjetas de agradecimiento</h2>
+      <p class="modal__sub">Generá 4 diseños personalizados con tu logo listos para imprimir</p>
+      <div class="tarj-form">
+        <div class="tarj-upload-zone" id="tarjUploadZone">
+          <input type="file" id="tarjLogoFile" accept="image/*" style="display:none"/>
+          <div class="tarj-upload-inner" id="tarjUploadInner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="color:var(--cyan);opacity:.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p style="margin:.3rem 0 .1rem;font-weight:600;color:var(--text);font-size:.88rem">Subí tu logo</p>
+            <p style="margin:0;font-size:.72rem;color:var(--muted)">PNG con fondo transparente recomendado</p>
+          </div>
+          <div class="tarj-upload-preview" id="tarjUploadPreview" style="display:none">
+            <img id="tarjLogoPreviewImg" src="" alt="" style="max-height:80px;max-width:180px;object-fit:contain;border-radius:6px"/>
+            <button class="tarj-change-logo" id="tarjChangeLogo">🔄 Cambiar</button>
+          </div>
+        </div>
+        <div class="tarj-fields">
+          <div class="form-group"><label class="form-label">Nombre de tu negocio</label><input type="text" id="tarjNegocio" class="form-input" placeholder="Ej: Rabbit3D" maxlength="40"/></div>
+          <div class="form-group"><label class="form-label">Mensaje <span style="color:var(--muted);font-size:.7rem">(opcional)</span></label><textarea id="tarjMensaje" class="form-input" rows="2" placeholder="Ej: ¡Gracias por tu compra! ✨" style="resize:vertical;min-height:55px" maxlength="120"></textarea></div>
+          <div class="form-group"><label class="form-label">Instagram / web <span style="color:var(--muted);font-size:.7rem">(opcional)</span></label><input type="text" id="tarjContacto" class="form-input" placeholder="Ej: @rabbit3d · rabbit3d.com" maxlength="50"/></div>
+          <div class="form-group">
+            <label class="form-label">Colores de la tarjeta <span style="color:var(--muted);font-size:.7rem">Se detectan del logo automáticamente</span></label>
+            <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:.25rem">
+                <input type="color" id="tarjColor0" value="#159A9C" title="Color principal" style="width:40px;height:36px;border:2px solid var(--cyan);border-radius:6px;cursor:pointer;padding:2px;background:none"/>
+                <span style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Principal</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:.25rem">
+                <input type="color" id="tarjColor1" value="#001520" title="Color secundario" style="width:40px;height:36px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;background:none"/>
+                <span style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Secundario</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:.25rem">
+                <input type="color" id="tarjColor2" value="#ffffff" title="Color terciario" style="width:40px;height:36px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;background:none"/>
+                <span style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Terciario</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:.25rem">
+                <input type="color" id="tarjColor3" value="#f0a028" title="Color de acento" style="width:40px;height:36px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;background:none"/>
+                <span style="font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Acento</span>
+              </div>
+              <button class="btn btn--sm" id="tarjResetColores" title="Restaurar colores del logo" style="font-size:.65rem;padding:.3rem .6rem">↺ Reset</button>
+            </div>
+          </div>
+          <div class="form-group" id="tarjLogoOpacityGroup" style="display:none">
+            <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+              Transparencia del fondo del logo
+              <span id="tarjLogoOpacityVal" style="font-family:var(--font-head);font-size:.7rem;color:var(--cyan)">0%</span>
+            </label>
+            <input type="range" id="tarjLogoOpacity" min="0" max="100" value="0" step="5"
+              style="width:100%;accent-color:var(--cyan);cursor:pointer"/>
+          </div>
+          <div class="form-group" id="tarjLogoScaleGroup" style="display:none">
+            <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+              Tamaño del logo
+              <span id="tarjLogoScaleVal" style="font-family:var(--font-head);font-size:.7rem;color:var(--cyan)">100%</span>
+            </label>
+            <input type="range" id="tarjLogoScaleInput" min="30" max="160" value="100" step="5"
+              style="width:100%;accent-color:var(--cyan);cursor:pointer"/>
+          </div>
+        </div>
+        <button class="btn btn--primary" id="btnGenerarTarjetas" style="width:100%;margin-top:1rem;display:flex;align-items:center;justify-content:center;gap:.5rem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          Generar 8 tarjetas
+        </button>
+      </div>
+      <div class="tarj-resultados" id="tarjResultados" style="display:none">
+        <p style="font-size:.78rem;color:var(--muted);margin:0 0 1rem">Hacé clic en "Descargar" para guardar como PNG (9×5.5cm a 300dpi)</p>
+        <div class="tarj-grid" id="tarjGrid"></div>
+      </div>
+      <p class="form-error" id="tarjError" style="margin-top:.75rem"></p>
+    </div>
+  </div>
+
+  <!-- Oculto: dependencia interna de tarjetas.js, sin botón que lo abra -->
+  <div class="modal-overlay" id="modal-potenciador" style="display:none">
+    <div class="modal modal-potenciador">
+      <button class="modal__close" onclick="cerrarEmprendedor('modal-potenciador')">✕</button>
+      <h2 class="modal__title">✨ Potenciador de producto</h2>
+      <div class="potenc-upload-zone" id="potencUploadZone"><input type="file" id="potencImgFile" accept="image/*" style="display:none"/>
+        <div class="potenc-upload-inner" id="potencUploadInner"></div>
+        <img id="potencImgPreview" src="" alt="" style="display:none"/>
+        <button class="potenc-change-btn" id="potencChangeBtn" style="display:none">🔄 Cambiar imagen</button>
+      </div>
+      <textarea id="potencDesc" style="display:none"></textarea>
+      <button id="btnPotenciar" style="display:none">Generar</button>
+      <div class="potenc-loading" id="potencLoading" style="display:none"><p id="potencLoadingMsg"></p></div>
+      <div class="potenc-resultados" id="potencResultados" style="display:none">
+        <div id="potencPromptImg"></div>
+        <div class="potenc-titulos" id="potencTitulos"></div>
+        <div id="potencDescResult"></div>
+      </div>
+      <p class="form-error" id="potencError"></p>
+    </div>
+  </div>
+
+  <!-- Oculto: dependencia interna de tarjetas.js, sin botón que lo abra -->
+  <div class="modal-overlay" id="modal-costos" style="display:none">
+    <div class="modal modal-costos">
+      <button class="modal__close" onclick="cerrarEmprendedor('modal-costos')">✕</button>
+      <h2 class="modal__title">💰 Calculadora de costos</h2>
+      <div class="costos-grid">
+        <input type="number" id="costoGramos" style="display:none"/>
+        <input type="number" id="costoPorKg" style="display:none"/>
+        <input type="number" id="costoHoras" style="display:none"/>
+        <input type="number" id="costoElect" style="display:none"/>
+        <input type="number" id="costoTrabajo" style="display:none"/>
+        <input type="number" id="costoHoraTrabajo" style="display:none"/>
+        <input type="number" id="costoMargen" style="display:none"/>
+        <input type="number" id="costoFijos" style="display:none"/>
+      </div>
+      <div class="costos-resultado" id="costosResultado" style="visibility:hidden">
+        <span id="resMateria"></span><span id="resElect"></span><span id="resTrabajo"></span>
+        <span id="resFijos"></span><span id="resSubtotal"></span><span id="resGanancia"></span><span id="resTotal"></span>
+        <button id="btnCopiarCosto">Copiar</button>
+      </div>
+      <button id="btnCalcularCosto">Calcular</button>
+    </div>
+  </div>
+
+  <!-- Oculto: dependencia interna de tarjetas.js, sin botón que lo abra -->
+  <div class="modal-overlay" id="modalOrdenTarjetas" style="display:none;z-index:9999">
+    <div class="modal" style="max-width:420px;width:95%;gap:.75rem">
+      <button class="modal__close" onclick="cerrarOrdenTarjetas()">✕</button>
+      <h2 class="modal__title">🃏 Orden de tarjetas</h2>
+      <div id="tarjOrdenList" style="display:none"></div>
+      <button id="btnGuardarOrdenTarjetas" style="display:none">Guardar orden</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-presupuesto" style="display:none">
+    <div class="modal modal-presupuesto">
+      <button class="modal__close" onclick="cerrarEmprendedor('modal-presupuesto')">✕</button>
+      <h2 class="modal__title">📄 Generador de presupuestos</h2>
+      <p class="modal__sub">Completá los datos y descargá un PDF profesional listo para enviar</p>
+
+      <div class="pres-form">
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">👤 Mis datos</h3>
+          <div class="pres-grid pres-grid--3">
+            <div class="form-group"><label class="form-label">Nombre / Emprendimiento</label><input type="text" id="presNegocio" class="form-input" placeholder="Rabbit3D"/></div>
+            <div class="form-group"><label class="form-label">CUIT / Identificación</label><input type="text" id="presCuit" class="form-input" placeholder="20-12345678-9"/></div>
+            <div class="form-group"><label class="form-label">Teléfono</label><input type="text" id="presTel" class="form-input" placeholder="+54 9 11 1234-5678"/></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="text" id="presEmail" class="form-input" placeholder="hola@rabbit3d.com"/></div>
+            <div class="form-group pres-grid--span2"><label class="form-label">Dirección / Ciudad</label><input type="text" id="presDireccion" class="form-input" placeholder="Ciudad de Buenos Aires"/></div>
+          </div>
+          <div class="pres-logo-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Logo <span style="color:var(--muted);font-size:.7rem">(opcional — PNG recomendado)</span></label>
+              <div class="pres-logo-zone" id="presLogoZone">
+                <input type="file" id="presLogoFile" accept="image/*" style="display:none"/>
+                <div id="presLogoInner" style="display:flex;align-items:center;gap:.6rem;cursor:pointer;padding:.5rem">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20" style="color:var(--cyan);flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span style="font-size:.78rem;color:var(--muted)">Subir logo</span>
+                </div>
+                <img id="presLogoPreview" src="" alt="" style="display:none;max-height:44px;max-width:140px;object-fit:contain;padding:.3rem"/>
+                <button id="presLogoQuitar" style="display:none;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;padding:.2rem .5rem">✕ Quitar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">🏢 Datos del cliente</h3>
+          <div class="pres-grid pres-grid--3">
+            <div class="form-group pres-grid--span2"><label class="form-label">Nombre / Razón social</label><input type="text" id="presClienteNombre" class="form-input" placeholder="Juan García"/></div>
+            <div class="form-group"><label class="form-label">Contacto</label><input type="text" id="presClienteContacto" class="form-input" placeholder="Tel / Email"/></div>
+            <div class="form-group pres-grid--span3"><label class="form-label">Dirección</label><input type="text" id="presClienteDireccion" class="form-input" placeholder="Dirección del cliente (opcional)"/></div>
+          </div>
+        </div>
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">📋 Información del presupuesto</h3>
+          <div class="pres-grid pres-grid--3">
+            <div class="form-group"><label class="form-label">Número de presupuesto</label><input type="text" id="presNumero" class="form-input" placeholder="001"/></div>
+            <div class="form-group"><label class="form-label">Fecha de emisión</label><input type="date" id="presFecha" class="form-input"/></div>
+            <div class="form-group"><label class="form-label">Válido por</label><input type="text" id="presValidez" class="form-input" placeholder="7 días"/></div>
+          </div>
+        </div>
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">📦 Detalle del trabajo</h3>
+          <div class="pres-items-header">
+            <span class="pres-items-col pres-items-col--desc">Descripción</span>
+            <span class="pres-items-col pres-items-col--qty">Cant.</span>
+            <span class="pres-items-col pres-items-col--price">Precio unit.</span>
+            <span class="pres-items-col pres-items-col--sub">Subtotal</span>
+            <span style="width:28px"></span>
+          </div>
+          <div id="presItemsContainer"></div>
+          <button class="btn btn--sm" id="btnPresAgregarItem" style="margin-top:.6rem;display:flex;align-items:center;gap:.35rem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Agregar ítem
+          </button>
+        </div>
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">➕ Adicionales</h3>
+          <div class="pres-grid pres-grid--3">
+            <div class="form-group"><label class="form-label">Diseño / Modelado 3D ($)</label><input type="number" id="presDisenio" class="form-input" placeholder="0" min="0"/></div>
+            <div class="form-group"><label class="form-label">Envío ($)</label><input type="number" id="presEnvio" class="form-input" placeholder="0" min="0"/></div>
+            <div class="form-group"><label class="form-label">Otros adicionales ($)</label><input type="number" id="presOtros" class="form-input" placeholder="0" min="0"/></div>
+          </div>
+        </div>
+
+        <div class="pres-seccion">
+          <div class="pres-grid pres-grid--3">
+            <div class="form-group">
+              <label class="form-label">IVA</label>
+              <select id="presIva" class="form-input">
+                <option value="0">Sin IVA (precio final)</option>
+                <option value="10.5">10.5%</option>
+                <option value="21">21%</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Moneda</label>
+              <div style="display:flex;gap:.4rem;align-items:center">
+                <select id="presMonedaSelect" class="form-input" style="flex:1">
+                  <option value="$ ">$ ARS (Argentina)</option>
+                  <option value="U$D ">U$D (Dólar)</option>
+                  <option value="€ ">€ EUR (Europa)</option>
+                  <option value="R$ ">R$ BRL (Brasil)</option>
+                  <option value="CLP$ ">CLP$ (Chile)</option>
+                  <option value="COP$ ">COP$ (Colombia)</option>
+                  <option value="S/. ">S/. PEN (Perú)</option>
+                  <option value="Bs. ">Bs. BOB (Bolivia)</option>
+                  <option value="Gs. ">Gs. PYG (Paraguay)</option>
+                  <option value="$U ">$U UYU (Uruguay)</option>
+                  <option value="MXN$ ">MXN$ (México)</option>
+                  <option value="£ ">£ GBP (Reino Unido)</option>
+                  <option value="custom">✏ Otra moneda...</option>
+                </select>
+                <input type="text" id="presMonedaCustom" class="form-input" placeholder="Símbolo" style="width:90px;display:none"/>
+              </div>
+              <input type="hidden" id="presMoneda" value="$ "/>
+            </div>
+          </div>
+        </div>
+
+        <div class="pres-seccion">
+          <h3 class="pres-seccion__titulo">📝 Condiciones de venta</h3>
+          <div class="pres-grid pres-grid--2">
+            <div class="form-group"><label class="form-label">Forma de pago</label><input type="text" id="presFormaPago" class="form-input" placeholder="Transferencia / Efectivo / MercadoPago"/></div>
+            <div class="form-group"><label class="form-label">Seña requerida</label><input type="text" id="presSeña" class="form-input" placeholder="50% para iniciar el trabajo"/></div>
+            <div class="form-group"><label class="form-label">Tiempo de entrega</label><input type="text" id="presEntrega" class="form-input" placeholder="7 días hábiles tras confirmación"/></div>
+            <div class="form-group"><label class="form-label">Logística</label><input type="text" id="presLogistica" class="form-input" placeholder="Retiro en taller / Envío a cargo del cliente"/></div>
+          </div>
+          <div class="form-group" style="margin-top:.75rem">
+            <label class="form-label">Notas adicionales / letra chica</label>
+            <textarea id="presNotas" class="form-input" rows="2" style="resize:vertical;min-height:55px" placeholder="Cambios en el diseño se cobran aparte. Presupuesto sujeto a revisión del archivo STL..."></textarea>
+          </div>
+        </div>
+
+        <div class="pres-total-preview" id="presTotalPreview">
+          <div class="pres-total-row"><span>Subtotal ítems</span><span id="presTotalItems">$0</span></div>
+          <div class="pres-total-row"><span>Adicionales</span><span id="presTotalAdicionales">$0</span></div>
+          <div class="pres-total-row pres-total-row--iva" id="presIvaRow" style="display:none"><span>IVA</span><span id="presTotalIva">$0</span></div>
+          <div class="pres-total-row pres-total-row--final"><span>💰 TOTAL</span><span id="presTotalFinal">$0</span></div>
+        </div>
+
+        <button class="btn btn--primary" id="btnGenerarPresupuesto" style="width:100%;margin-top:1.25rem;display:flex;align-items:center;justify-content:center;gap:.5rem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Generar y descargar PDF
+        </button>
+        <p class="form-error" id="presError" style="margin-top:.75rem"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-fotoproducto" style="display:none">
+    <div class="modal modal-fotoproducto">
+      <button class="modal__close" onclick="cerrarEmprendedor('modal-fotoproducto')">✕</button>
+      <h2 class="modal__title">🖼 Cambiar fondo de producto</h2>
+      <p class="modal__sub">Recortá el fondo y colocá tu producto sobre fondos profesionales</p>
+
+      <div class="foto-layout">
+
+        <div class="foto-paso" id="fotoPaso1">
+          <p class="foto-paso__num">1 · Subí la foto de tu producto</p>
+          <div class="foto-upload-zone" id="fotoUploadZone">
+            <input type="file" id="fotoProductoFile" accept=".jpg,.jpeg,.png,image/jpeg,image/png" style="display:none"/>
+            <div id="fotoUploadInner" style="display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="color:var(--cyan);opacity:.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span style="font-size:.8rem;font-weight:600;color:var(--text)">Clic o arrastrá tu imagen</span>
+              <span style="font-size:.7rem;color:var(--muted)">JPG o PNG · Mejor resultado con fondo claro o sólido</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="foto-paso" id="fotoPaso2" style="display:none">
+          <p class="foto-paso__num">2 · Elegí un fondo</p>
+
+          <div class="foto-tabs">
+            <button class="foto-tab foto-tab--active" id="fotoTabImagen" onclick="fotoSwitchTab('imagen')">🖼 Imagen</button>
+            <button class="foto-tab" id="fotoTabColor" onclick="fotoSwitchTab('color')">🎨 Color sólido</button>
+          </div>
+
+          <div id="fotoPanelImagen">
+            <div class="foto-fondos-grid" id="fotoFondosGrid">
+              <div style="color:var(--muted);font-size:.78rem;padding:.5rem">Cargando fondos...</div>
+            </div>
+            <button class="foto-ver-mas-btn" id="fotoVerMasFondos" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
+              Ver todos los fondos
+            </button>
+          </div>
+
+          <div id="fotoPanelColor" style="display:none">
+            <div class="foto-color-panel">
+              <div class="foto-color-presets" id="fotoColorPresets">
+                <button class="foto-color-swatch foto-color-swatch--active" data-color="#ffffff" style="background:#ffffff;border:2px solid #ccc" title="Blanco"></button>
+                <button class="foto-color-swatch" data-color="#000000" style="background:#000000" title="Negro"></button>
+                <button class="foto-color-swatch" data-color="#f5f5f0" style="background:#f5f5f0;border:2px solid #ddd" title="Hueso"></button>
+                <button class="foto-color-swatch" data-color="#1a1a2e" style="background:#1a1a2e" title="Azul noche"></button>
+                <button class="foto-color-swatch" data-color="#2d4a22" style="background:#2d4a22" title="Verde oscuro"></button>
+                <button class="foto-color-swatch" data-color="#8B0000" style="background:#8B0000" title="Rojo oscuro"></button>
+                <button class="foto-color-swatch" data-color="#e8e0d0" style="background:#e8e0d0;border:2px solid #ddd" title="Arena"></button>
+                <button class="foto-color-swatch" data-color="#001520" style="background:#001520" title="Cyan noche"></button>
+              </div>
+              <div style="display:flex;align-items:center;gap:.75rem;margin-top:.6rem">
+                <label class="foto-ctrl-label" style="width:auto">Color personalizado</label>
+                <input type="color" id="fotoColorCustom" value="#ffffff" style="width:40px;height:30px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="foto-compositor" id="fotoCompositor" style="display:none">
+          <p class="foto-paso__num">3 · Acomodá tu producto</p>
+
+          <div class="foto-compositor-layout">
+
+            <div class="foto-controles-col">
+
+              <div class="foto-size-selector">
+                <button class="foto-size-btn foto-size-btn--active" data-w="1080" data-h="1080" title="Cuadrado">⬛ 1:1</button>
+                <button class="foto-size-btn" data-w="1080" data-h="1350" title="Vertical">▯ 4:5</button>
+                <button class="foto-size-btn" data-w="1200" data-h="628" title="Horizontal">▭ 1.9:1</button>
+                <button class="foto-size-btn" data-w="1080" data-h="1920" title="Story">▮ 9:16</button>
+                <button class="foto-size-btn" id="fotoSizeLibre" title="Libre">✏ Libre</button>
+              </div>
+              <div id="fotoSizeLibrePanel" style="display:none;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">
+                <input type="number" id="fotoLibreW" class="form-input" value="1080" min="100" max="4000" style="width:80px;padding:.3rem .5rem;font-size:.8rem"/> px ×
+                <input type="number" id="fotoLibreH" class="form-input" value="1080" min="100" max="4000" style="width:80px;padding:.3rem .5rem;font-size:.8rem"/> px
+                <button class="btn btn--sm" id="fotoBtnAplicarSize">Aplicar</button>
+              </div>
+
+              <div class="foto-controles">
+
+            <div class="foto-ctrl-section">📐 Posición</div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Escala</label>
+              <input type="range" id="fotoEscala" min="10" max="200" value="80" class="mejora-slider" style="flex:1"/>
+              <span id="fotoEscalaVal" style="font-size:.75rem;color:var(--cyan);width:35px;text-align:right">80%</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Rotación</label>
+              <input type="range" id="fotoRotacion" min="-180" max="180" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoRotVal" style="font-size:.75rem;color:var(--cyan);width:35px;text-align:right">0°</span>
+            </div>
+
+            <div class="foto-ctrl-section">🌤 Iluminación del producto</div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Brillo</label>
+              <input type="range" id="fotoBrillo" min="-100" max="100" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoBrilloVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Contraste</label>
+              <input type="range" id="fotoContraste" min="-80" max="80" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoContrasteVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Saturación</label>
+              <input type="range" id="fotoSaturacion" min="-100" max="100" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoSaturacionVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0</span>
+            </div>
+
+            <div class="foto-ctrl-section">🎨 Integración con el fondo</div>
+            <div class="foto-ctrl-row" style="background:rgba(21,154,156,.07);border:1px solid rgba(21,154,156,.25);border-radius:8px;padding:.4rem .5rem;margin-bottom:.25rem">
+              <label class="foto-ctrl-label" style="color:var(--cyan);font-size:.6rem">✨ Tinte ambiental</label>
+              <input type="range" id="fotoTinte" min="0" max="40" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoTinteVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0%</span>
+            </div>
+            <p style="font-size:.6rem;color:var(--muted);margin:-.1rem 0 .5rem;text-align:center">Mezcla el color del fondo al producto para integrarlos</p>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Suavizar bordes</label>
+              <input type="range" id="fotoBordes" min="0" max="20" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoBordesVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0px</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Opacidad</label>
+              <input type="range" id="fotoOpacidad" min="10" max="100" value="100" class="mejora-slider" style="flex:1"/>
+              <span id="fotoOpacidadVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">100%</span>
+            </div>
+
+            <div class="foto-ctrl-section">🌑 Sombra</div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Intensidad</label>
+              <input type="range" id="fotoSombraOpac" min="0" max="80" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoSombraOpacVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0%</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Difusión</label>
+              <input type="range" id="fotoSombraBlur" min="0" max="80" value="20" class="mejora-slider" style="flex:1"/>
+              <span id="fotoSombraBlurVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">20px</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Desplazamiento</label>
+              <input type="range" id="fotoSombraOff" min="0" max="60" value="10" class="mejora-slider" style="flex:1"/>
+              <span id="fotoSombraOffVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">10px</span>
+            </div>
+
+            <div class="foto-ctrl-section">🔮 Fondo</div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Viñeta</label>
+              <input type="range" id="fotoVignet" min="0" max="100" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoVignetVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0%</span>
+            </div>
+            <div class="foto-ctrl-row">
+              <label class="foto-ctrl-label">Desenfoque fondo</label>
+              <input type="range" id="fotoBgBlur" min="0" max="20" value="0" class="mejora-slider" style="flex:1"/>
+              <span id="fotoBgBlurVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">0px</span>
+            </div>
+
+              <div class="foto-ctrl-row" id="fotoTolRow" style="display:none">
+                <label class="foto-ctrl-label">Tolerancia (fallback)</label>
+                <input type="range" id="fotoTolerancia" min="5" max="100" value="50" class="mejora-slider" style="flex:1"/>
+                <span id="fotoTolVal" style="font-size:.75rem;color:var(--cyan);width:38px;text-align:right">50</span>
+              </div>
+              </div>
+
+              <div class="foto-actions" style="margin-top:.75rem;flex-wrap:wrap">
+                <p style="font-size:.65rem;color:var(--muted);margin:0 0 .4rem" id="fotoMotorLabel">
+                  🤖 Motor: <strong style="color:var(--cyan)">RMBG-1.4</strong> — IA de alta calidad, 100% local
+                </p>
+                <button class="btn" id="fotoBtnRecortar">✂️ Re-recortar</button>
+                <button class="btn" id="fotoBtnCentrar">⊙ Centrar</button>
+                <button class="btn btn--primary" id="fotoBtnDescargar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Descargar PNG
+                </button>
+                <button class="btn" id="fotoBtnNueva">🔄 Nueva foto</button>
+              </div>
+              <p class="form-error" id="fotoError"></p>
+
+            </div>
+
+            <div class="foto-canvas-col">
+              <div class="foto-canvas-wrap">
+                <canvas id="fotoCanvas" class="foto-canvas"></canvas>
+                <div class="foto-canvas-hint">Arrastrá · Ruedita para escalar · Doble clic para centrar</div>
+              </div>
+              <a href="https://www.remove.bg/es" target="_blank" rel="noopener"
+                style="display:flex;align-items:center;gap:.6rem;margin-top:.75rem;padding:.6rem .9rem;background:rgba(21,154,156,.08);border:1px solid rgba(21,154,156,.25);border-radius:10px;text-decoration:none;transition:background .2s"
+                onmouseover="this.style.background='rgba(21,154,156,.16)'" onmouseout="this.style.background='rgba(21,154,156,.08)'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#4ecca3" stroke-width="1.8" width="20" height="20" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+                <div>
+                  <p style="margin:0;font-size:.75rem;font-weight:700;color:var(--cyan);font-family:var(--font-head)">¿No te convenció el recorte?</p>
+                  <p style="margin:.1rem 0 0;font-size:.68rem;color:var(--muted);line-height:1.4">Recortá en <strong style="color:var(--cyan)">remove.bg</strong>, descargá el PNG y subilo con 🔄 Nueva foto</p>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" width="14" height="14" style="flex-shrink:0;margin-left:auto"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="catalogos.js" defer></script>
+  <script src="../js/tarjetas.js" defer></script>
+  <script src="../js/presupuesto.js" defer></script>
+  <script src="../js/fotoproducto.js" defer></script>
+</body>
+</html>
