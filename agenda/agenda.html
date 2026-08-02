@@ -227,6 +227,31 @@
       .ag-fin-grid { grid-template-columns: 1fr; }
     }
 
+    /* Estudio */
+    .ag-estudio-examen-banner {
+      background: var(--cyan-dim); border: 1px solid var(--cyan-mid); border-radius: var(--radius);
+      padding: 1rem 1.2rem; margin-bottom: 1.2rem; text-align: center; font-size: .92rem; color: var(--text);
+    }
+    .ag-estudio-examen-banner strong { color: var(--cyan); font-family: var(--font-head); }
+    .ag-timer-modo { text-align: center; font-family: var(--font-head); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); margin-bottom: .5rem; }
+    .ag-timer-modo--descanso { color: #4ecca3; }
+    .ag-timer-display { text-align: center; font-family: var(--font-head); font-size: 3.2rem; font-weight: 700; color: var(--text); letter-spacing: .02em; margin-bottom: 1rem; font-variant-numeric: tabular-nums; }
+    .ag-timer-duraciones { display: flex; justify-content: center; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
+    .ag-timer-controles { display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap; }
+    .ag-timer-controles .btn { min-width: 110px; }
+    .ag-timer-ciclos { text-align: center; font-size: .72rem; color: var(--muted); margin-top: .9rem; }
+    .ag-timer-ciclos strong { color: var(--cyan); }
+
+    .ag-materia-grupo { margin-bottom: 1rem; }
+    .ag-materia-grupo__titulo { font-size: .7rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 .5rem; }
+
+    .ag-examen-row { display: flex; align-items: center; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .9rem; margin-bottom: .5rem; }
+    .ag-examen-row__nombre { flex: 1; color: var(--text); font-weight: 700; font-size: .85rem; }
+    .ag-examen-row__dias { font-size: .78rem; font-weight: 700; color: var(--cyan); white-space: nowrap; }
+    .ag-examen-row__dias--pasado { color: var(--muted); font-weight: 500; }
+    .ag-examen-add { display: none; gap: .6rem; flex-wrap: wrap; align-items: flex-end; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
+    .ag-examen-add .form-group { margin-bottom: 0; flex: 1; min-width: 140px; }
+
     /* ═══ MOBILE ═══ */
     @media (max-width: 860px) {
       .ag-shell { flex-direction: column; }
@@ -273,6 +298,9 @@
       .ag-pago-toggle { flex-direction: column; }
       .ag-lista { grid-template-columns: 1fr; }
       .ag-postit, .ag-corcho-add { width: 100px; min-height: 90px; font-size: .7rem; }
+
+      .ag-timer-display { font-size: 2.4rem; }
+      .ag-examen-add { flex-direction: column; align-items: stretch; }
     }
   </style>
 </head>
@@ -294,6 +322,7 @@
         <button class="ag-nav-item" data-vista="calendario">📅 Calendario</button>
         <button class="ag-nav-item" data-vista="carpetas">📝 Notas</button>
         <button class="ag-nav-item" data-vista="finanzas">💰 Finanzas</button>
+        <button class="ag-nav-item" data-vista="estudio">📚 Estudio</button>
         <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
@@ -446,6 +475,75 @@
               <div class="ag-fin-movs" id="agFinMovs"></div>
               <p class="ag-empty" id="agFinMovsEmpty" style="display:none">Nada cargado en este período.</p>
             </div>
+          </div>
+        </div>
+
+        <!-- VISTA ESTUDIO -->
+        <div id="agVistaEstudio" style="display:none">
+
+          <div class="ag-estudio-examen-banner" id="agExamenBanner" style="display:none">
+            <span id="agExamenBannerTexto"></span>
+          </div>
+
+          <div class="ag-fin-grid">
+            <div class="ag-fin-pie-card">
+              <p class="ag-section-label" style="margin-bottom:1.1rem">⏱️ Temporizador de estudio</p>
+              <p class="ag-timer-modo" id="agTimerModo">Estudio</p>
+              <p class="ag-timer-display" id="agTimerDisplay">15:00</p>
+              <div class="ag-timer-duraciones" id="agTimerDuraciones">
+                <button class="ag-tipo-btn" data-min="5">5 min</button>
+                <button class="ag-tipo-btn" data-min="15">15 min</button>
+                <button class="ag-tipo-btn" data-min="25">25 min</button>
+                <button class="ag-tipo-btn" data-min="45">45 min</button>
+              </div>
+              <div class="ag-timer-controles">
+                <button class="btn btn--primary" id="agTimerBtnIniciar">▶ Iniciar</button>
+                <button class="btn" id="agTimerBtnPausar" style="display:none">⏸ Pausar</button>
+                <button class="btn" id="agTimerBtnDetener" style="display:none">⏹ Detener</button>
+              </div>
+              <p class="ag-timer-ciclos">Ciclos de estudio hoy: <strong id="agTimerCiclosHoy">0</strong></p>
+            </div>
+
+            <div class="ag-fin-lista-card">
+              <p class="ag-section-label" style="margin-bottom:.9rem">📚 Tareas de estudio</p>
+              <div class="ag-nota-add">
+                <input type="text" id="agTareaInput" class="form-input" placeholder="Ej: Repasar tema 3"/>
+                <input type="text" id="agTareaMateriaInput" class="form-input" placeholder="Materia (opcional)" style="max-width:150px"/>
+                <button class="btn btn--primary btn--sm" id="agBtnAgregarTarea">Agregar</button>
+              </div>
+              <div id="agTareasLista"></div>
+              <p class="ag-empty" id="agTareasEmpty" style="display:none">Todavía no cargaste ninguna tarea.</p>
+            </div>
+          </div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.2rem">
+            <p class="ag-section-label" style="margin-bottom:1rem">📊 Resumen semanal</p>
+            <div class="ag-fin-pie-wrap">
+              <div class="ag-fin-pie" id="agEstudioPie"></div>
+              <p class="ag-empty" id="agEstudioPieEmpty" style="display:none;padding:1rem 0">Todavía no estudiaste esta semana.</p>
+            </div>
+            <div class="ag-fin-leyenda" id="agEstudioLeyenda"></div>
+            <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:.9rem">Total esta semana: <strong id="agEstudioTotalSemana" style="color:var(--cyan)">0 min</strong></p>
+          </div>
+
+          <div style="margin-top:1.2rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+              <p class="ag-section-label">🎯 Exámenes</p>
+              <button class="btn btn--sm" id="agBtnNuevoExamen">+ Agregar examen</button>
+            </div>
+            <div class="ag-examen-add" id="agExamenAddWrap">
+              <div class="form-group">
+                <label class="form-label">Nombre</label>
+                <input type="text" id="agExamenNombreInput" class="form-input" placeholder="Ej: Análisis Matemático II"/>
+              </div>
+              <div class="form-group" style="flex:0 0 160px">
+                <label class="form-label">Fecha</label>
+                <input type="date" id="agExamenFechaInput" class="form-input"/>
+              </div>
+              <button class="btn btn--primary btn--sm" id="agBtnGuardarExamen">Guardar</button>
+            </div>
+            <p class="form-error" id="agExamenError"></p>
+            <div id="agExamenesLista"></div>
           </div>
         </div>
       </div>

@@ -298,9 +298,11 @@
     document.getElementById('agVistaCalendario').style.display = vistaActual === 'calendario' ? 'block' : 'none'
     document.getElementById('agVistaCarpetas').style.display = vistaActual === 'carpetas' ? 'block' : 'none'
     document.getElementById('agVistaFinanzas').style.display = vistaActual === 'finanzas' ? 'block' : 'none'
+    document.getElementById('agVistaEstudio').style.display = vistaActual === 'estudio' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
     if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
+    if (vistaActual === 'estudio') cargarEstudioTab()
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -1177,6 +1179,308 @@
     renderCategoriasFinLista()
     resetFormCategoriaFin()
     await cargarFinanzas()
+  })
+
+  // ══════════════════════════════════════════
+  //  ESTUDIO — temporizador, tareas, exámenes y resumen semanal
+  // ══════════════════════════════════════════
+  let tareas = []
+  let examenes = []
+  let sesiones = []
+
+  let timerModo = 'estudio'       // 'estudio' | 'descanso'
+  let timerDuracionEstudio = 15   // minutos, elegido con los botones rápidos
+  const TIMER_DURACION_DESCANSO = 5
+  let timerSegundosRestantes = timerDuracionEstudio * 60
+  let timerInterval = null
+  let timerPausado = false
+  let estudioCargado = false
+
+  async function cargarEstudioTab() {
+    if (!estudioCargado) { actualizarDisplayTimer(); estudioCargado = true }
+    await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones()])
+    renderResumenSemanal()
+  }
+
+  function formatoMMSS(totalSeg) {
+    const m = Math.floor(totalSeg / 60), s = totalSeg % 60
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
+  }
+
+  function actualizarDisplayTimer() {
+    document.getElementById('agTimerDisplay').textContent = formatoMMSS(timerSegundosRestantes)
+    const modoEl = document.getElementById('agTimerModo')
+    modoEl.textContent = timerModo === 'estudio' ? 'Estudio' : 'Descanso'
+    modoEl.className = 'ag-timer-modo' + (timerModo === 'descanso' ? ' ag-timer-modo--descanso' : '')
+  }
+
+  function actualizarCiclosHoy() {
+    const n = sesiones.filter(s => s.fecha === hoyISO()).length
+    document.getElementById('agTimerCiclosHoy').textContent = n
+  }
+
+  // Beep simple con Web Audio — no depende de ningún archivo de sonido externo
+  function sonarBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      ;[0, 0.32, 0.64].forEach(delay => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = 880
+        gain.gain.value = 0.16
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.start(ctx.currentTime + delay)
+        osc.stop(ctx.currentTime + delay + 0.26)
+      })
+    } catch (e) { /* si el navegador bloquea audio sin interacción previa, no pasa nada grave */ }
+  }
+
+  function iniciarIntervaloTimer() {
+    clearInterval(timerInterval)
+    timerInterval = setInterval(() => {
+      timerSegundosRestantes--
+      if (timerSegundosRestantes <= 0) { terminarCicloTimer(); return }
+      actualizarDisplayTimer()
+    }, 1000)
+  }
+
+  async function terminarCicloTimer() {
+    sonarBeep()
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(timerModo === 'estudio' ? '⏱️ ¡Tiempo de estudio terminado!' : '☕ Fin del descanso', {
+        body: timerModo === 'estudio' ? 'Tomate un descanso de 5 minutos.' : 'Volvamos a estudiar.'
+      })
+    }
+    if (timerModo === 'estudio') {
+      await registrarSesion(timerDuracionEstudio)
+      timerModo = 'descanso'
+      timerSegundosRestantes = TIMER_DURACION_DESCANSO * 60
+    } else {
+      timerModo = 'estudio'
+      timerSegundosRestantes = timerDuracionEstudio * 60
+    }
+    actualizarDisplayTimer()
+    iniciarIntervaloTimer() // el ciclo siguiente arranca solo
+  }
+
+  document.querySelectorAll('#agTimerDuraciones .ag-tipo-btn').forEach(btn => {
+    if (Number(btn.dataset.min) === timerDuracionEstudio) btn.classList.add('activo')
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#agTimerDuraciones .ag-tipo-btn').forEach(b => b.classList.remove('activo'))
+      btn.classList.add('activo')
+      timerDuracionEstudio = Number(btn.dataset.min)
+      if (!timerInterval && timerModo === 'estudio') {
+        timerSegundosRestantes = timerDuracionEstudio * 60
+        actualizarDisplayTimer()
+      }
+    })
+  })
+
+  document.getElementById('agTimerBtnIniciar').addEventListener('click', () => {
+    document.getElementById('agTimerBtnIniciar').style.display = 'none'
+    document.getElementById('agTimerBtnPausar').style.display = 'inline-flex'
+    document.getElementById('agTimerBtnDetener').style.display = 'inline-flex'
+    timerPausado = false
+    iniciarIntervaloTimer()
+  })
+  document.getElementById('agTimerBtnPausar').addEventListener('click', () => {
+    timerPausado = !timerPausado
+    const btn = document.getElementById('agTimerBtnPausar')
+    if (timerPausado) { clearInterval(timerInterval); btn.textContent = '▶ Reanudar' }
+    else { iniciarIntervaloTimer(); btn.textContent = '⏸ Pausar' }
+  })
+  document.getElementById('agTimerBtnDetener').addEventListener('click', () => {
+    clearInterval(timerInterval); timerInterval = null
+    timerModo = 'estudio'
+    timerSegundosRestantes = timerDuracionEstudio * 60
+    timerPausado = false
+    document.getElementById('agTimerBtnIniciar').style.display = 'inline-flex'
+    document.getElementById('agTimerBtnPausar').style.display = 'none'
+    document.getElementById('agTimerBtnPausar').textContent = '⏸ Pausar'
+    document.getElementById('agTimerBtnDetener').style.display = 'none'
+    actualizarDisplayTimer()
+  })
+
+  // ── Sesiones (historial + resumen semanal) ─────────────────────────
+  async function registrarSesion(minutos) {
+    const { error } = await supabase.from('estudio_sesiones').insert([{ fecha: hoyISO(), minutos }])
+    if (error) { console.error('[estudio] error al registrar sesión:', error); return }
+    await cargarSesiones()
+    renderResumenSemanal()
+  }
+
+  async function cargarSesiones() {
+    const desde = new Date(); desde.setDate(desde.getDate() - 6)
+    const desdeISO = desde.getFullYear() + '-' + String(desde.getMonth()+1).padStart(2,'0') + '-' + String(desde.getDate()).padStart(2,'0')
+    const { data, error } = await supabase.from('estudio_sesiones').select('*').gte('fecha', desdeISO).order('fecha', { ascending: true })
+    if (error) { console.error('[estudio] error al cargar sesiones:', error); return }
+    sesiones = data || []
+    actualizarCiclosHoy()
+  }
+
+  function renderResumenSemanal() {
+    const porDia = {}
+    const dias = []
+    const hoy = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoy); d.setDate(d.getDate() - i)
+      const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+      dias.push({ iso, nombre: d.toLocaleDateString('es-AR', { weekday: 'short' }) })
+      porDia[iso] = 0
+    }
+    sesiones.forEach(s => { if (porDia[s.fecha] !== undefined) porDia[s.fecha] += s.minutos })
+
+    const total = Object.values(porDia).reduce((a, b) => a + b, 0)
+    const pie = document.getElementById('agEstudioPie')
+    const empty = document.getElementById('agEstudioPieEmpty')
+    const leyenda = document.getElementById('agEstudioLeyenda')
+    document.getElementById('agEstudioTotalSemana').textContent = total + ' min'
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      empty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    empty.style.display = 'none'
+
+    const colores = ['#159A9C', '#9d7fe8', '#e8608f', '#3ecf8e', '#f59e0b', '#4f8ff7', '#d1495b']
+    let acumulado = 0
+    const stops = []
+    const filas = dias.map((d, i) => {
+      const min = porDia[d.iso]
+      const pct = (min / total) * 100
+      if (min > 0) { stops.push(`${colores[i]} ${acumulado}% ${acumulado + pct}%`); acumulado += pct }
+      return { nombre: d.nombre, min, color: colores[i], pct }
+    })
+    pie.style.background = stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--bg3)'
+    leyenda.innerHTML = filas.filter(f => f.min > 0).map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.nombre} · ${f.min} min
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
+  // ── Tareas de estudio (agrupadas por materia) ──────────────────────
+  async function cargarTareas() {
+    const { data, error } = await supabase.from('estudio_tareas').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[estudio] error al cargar tareas:', error); return }
+    tareas = data || []
+    renderTareas()
+  }
+
+  function renderTareas() {
+    const cont = document.getElementById('agTareasLista')
+    const empty = document.getElementById('agTareasEmpty')
+    if (tareas.length === 0) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+
+    const grupos = {}
+    tareas.forEach(t => { const key = t.materia || 'Sin materia'; (grupos[key] = grupos[key] || []).push(t) })
+
+    cont.innerHTML = Object.entries(grupos).map(([materia, lista]) => `
+      <div class="ag-materia-grupo">
+        <p class="ag-materia-grupo__titulo">${materia}</p>
+        <div class="ag-notas-lista">
+          ${lista.map(t => `
+            <div class="ag-nota-item">
+              <button class="ag-nota-item__check ${t.hecha ? 'hecho' : ''}" onclick="window._agToggleTarea(${t.id})">✓</button>
+              <span class="ag-nota-item__texto ${t.hecha ? 'hecho' : ''}">${t.texto}</span>
+              <button class="ag-nota-item__del" onclick="window._agEliminarTarea(${t.id})">🗑</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('')
+  }
+
+  window._agToggleTarea = async function (id) {
+    const t = tareas.find(x => x.id === id)
+    if (!t) return
+    const { error } = await supabase.from('estudio_tareas').update({ hecha: !t.hecha }).eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarTareas()
+  }
+  window._agEliminarTarea = async function (id) {
+    if (!confirm('¿Eliminar esta tarea?')) return
+    const { error } = await supabase.from('estudio_tareas').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarTareas()
+  }
+
+  document.getElementById('agBtnAgregarTarea').addEventListener('click', async () => {
+    const texto = document.getElementById('agTareaInput').value.trim()
+    const materia = document.getElementById('agTareaMateriaInput').value.trim()
+    if (!texto) return
+    const { error } = await supabase.from('estudio_tareas').insert([{ texto, materia: materia || null, orden: tareas.length }])
+    if (error) { alert('Error: ' + error.message); return }
+    document.getElementById('agTareaInput').value = ''
+    document.getElementById('agTareaMateriaInput').value = ''
+    await cargarTareas()
+  })
+
+  // ── Exámenes (cuenta regresiva) ─────────────────────────────────────
+  async function cargarExamenes() {
+    const { data, error } = await supabase.from('estudio_examenes').select('*').order('fecha', { ascending: true })
+    if (error) { console.error('[estudio] error al cargar exámenes:', error); return }
+    examenes = data || []
+    renderExamenBanner()
+    renderExamenesLista()
+  }
+
+  function renderExamenBanner() {
+    const banner = document.getElementById('agExamenBanner')
+    const proximo = examenes.filter(e => diasHasta(e.fecha) >= 0).sort((a, b) => diasHasta(a.fecha) - diasHasta(b.fecha))[0]
+    if (!proximo) { banner.style.display = 'none'; return }
+    const dias = diasHasta(proximo.fecha)
+    banner.style.display = 'block'
+    document.getElementById('agExamenBannerTexto').innerHTML = dias === 0
+      ? `🎯 <strong>${proximo.nombre}</strong> es hoy — ¡mucha suerte!`
+      : `🎯 Faltan <strong>${dias}</strong> día${dias === 1 ? '' : 's'} para <strong>${proximo.nombre}</strong>`
+  }
+
+  function renderExamenesLista() {
+    const cont = document.getElementById('agExamenesLista')
+    if (examenes.length === 0) { cont.innerHTML = '<p class="ag-empty">Todavía no cargaste ningún examen.</p>'; return }
+    cont.innerHTML = examenes.map(e => {
+      const dias = diasHasta(e.fecha)
+      const pasado = dias < 0
+      const texto = pasado ? 'Ya pasó' : (dias === 0 ? 'Hoy' : `Faltan ${dias} día${dias === 1 ? '' : 's'}`)
+      return `
+      <div class="ag-examen-row">
+        <span class="ag-examen-row__nombre">${e.nombre}</span>
+        <span class="ag-examen-row__dias ${pasado ? 'ag-examen-row__dias--pasado' : ''}">${texto}</span>
+        <button class="ag-item__btn" onclick="window._agEliminarExamen(${e.id})">🗑</button>
+      </div>`
+    }).join('')
+  }
+
+  window._agEliminarExamen = async function (id) {
+    if (!confirm('¿Eliminar este examen?')) return
+    const { error } = await supabase.from('estudio_examenes').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarExamenes()
+  }
+
+  document.getElementById('agBtnNuevoExamen').addEventListener('click', () => {
+    const wrap = document.getElementById('agExamenAddWrap')
+    wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex'
+  })
+  document.getElementById('agBtnGuardarExamen').addEventListener('click', async () => {
+    const nombre = document.getElementById('agExamenNombreInput').value.trim()
+    const fecha = document.getElementById('agExamenFechaInput').value
+    const errEl = document.getElementById('agExamenError')
+    errEl.textContent = ''
+    if (!nombre || !fecha) { errEl.textContent = 'Completá nombre y fecha.'; return }
+    const { error } = await supabase.from('estudio_examenes').insert([{ nombre, fecha }])
+    if (error) { errEl.textContent = 'Error: ' + error.message; return }
+    document.getElementById('agExamenNombreInput').value = ''
+    document.getElementById('agExamenFechaInput').value = ''
+    document.getElementById('agExamenAddWrap').style.display = 'none'
+    await cargarExamenes()
   })
 
   // ══════════════════════════════════════════
