@@ -323,6 +323,7 @@
         <button class="ag-nav-item" data-vista="carpetas">📝 Notas</button>
         <button class="ag-nav-item" data-vista="finanzas">💰 Finanzas</button>
         <button class="ag-nav-item" data-vista="estudio">📚 Estudio</button>
+        <button class="ag-nav-item" data-vista="pantalla">📱 Pantalla</button>
         <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
@@ -546,6 +547,84 @@
             <div id="agExamenesLista"></div>
           </div>
         </div>
+
+        <!-- VISTA PANTALLA (carga manual de tiempo de uso) -->
+        <div id="agVistaPantalla" style="display:none">
+          <div class="ag-fin-grid">
+            <div class="ag-fin-pie-card">
+              <p class="ag-section-label" style="margin-bottom:1rem">📱 Por app — <span id="agPantallaFechaLabel"></span></p>
+              <div class="ag-fin-pie-wrap">
+                <div class="ag-fin-pie" id="agPantallaPie"></div>
+                <p class="ag-empty" id="agPantallaPieEmpty" style="display:none;padding:1rem 0">Sin datos cargados este día.</p>
+              </div>
+              <div class="ag-fin-leyenda" id="agPantallaLeyenda"></div>
+              <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:.9rem">Total del día: <strong id="agPantallaTotalDia" style="color:var(--cyan)">0 min</strong></p>
+            </div>
+
+            <div class="ag-fin-lista-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;gap:.5rem">
+                <p class="ag-section-label">Cargar uso de un día</p>
+                <div style="display:flex;gap:.5rem;align-items:center">
+                  <input type="date" id="agPantallaFechaInput" class="form-input" style="max-width:160px"/>
+                  <button class="btn btn--sm" id="agBtnCategoriasPantalla">⚙ Categorías</button>
+                </div>
+              </div>
+              <div class="ag-tipo-select" id="agPantallaCategoriaSelect"></div>
+              <div class="ag-nota-add">
+                <input type="number" id="agPantallaHsInput" class="form-input" placeholder="Hs" min="0" style="max-width:70px"/>
+                <input type="number" id="agPantallaMinInput" class="form-input" placeholder="Min" min="0" max="59" style="max-width:70px"/>
+                <button class="btn btn--primary btn--sm" id="agBtnAgregarPantalla">Agregar</button>
+              </div>
+              <p class="form-error" id="agPantallaError"></p>
+              <div id="agPantallaLista"></div>
+              <p class="ag-empty" id="agPantallaListaEmpty" style="display:none">Todavía no cargaste nada este día.</p>
+            </div>
+          </div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.2rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
+              <p class="ag-section-label">📈 Estadísticas</p>
+              <div class="ag-fin-periodo" id="agPantallaStatsPeriodo">
+                <button class="ag-fin-periodo__btn activo" data-dias="7">7 días</button>
+                <button class="ag-fin-periodo__btn" data-dias="30">30 días</button>
+                <button class="ag-fin-periodo__btn" data-dias="todo">Todo</button>
+              </div>
+            </div>
+
+            <div class="ag-stats" style="margin-bottom:1rem">
+              <div class="ag-stat-card">
+                <span class="ag-stat-card__icon">⏱️</span>
+                <div><p class="ag-stat-card__label">Total del período</p><p class="ag-stat-card__num" id="agPStatTotal">0h</p></div>
+              </div>
+              <div class="ag-stat-card">
+                <span class="ag-stat-card__icon">📅</span>
+                <div><p class="ag-stat-card__label">Promedio diario</p><p class="ag-stat-card__num" id="agPStatPromedio">0h</p></div>
+              </div>
+              <div class="ag-stat-card ag-stat-card--warn">
+                <span class="ag-stat-card__icon">🏆</span>
+                <div><p class="ag-stat-card__label">Más usada</p><p class="ag-stat-card__num" id="agPStatTop">—</p></div>
+              </div>
+              <div class="ag-stat-card ag-stat-card--danger">
+                <span class="ag-stat-card__icon">🔺</span>
+                <div><p class="ag-stat-card__label">Día récord</p><p class="ag-stat-card__num" id="agPStatRecord">—</p></div>
+              </div>
+            </div>
+            <p style="font-size:.72rem;color:var(--muted);margin:0 0 1rem" id="agPStatDiasRegistrados"></p>
+
+            <div id="agPantallaStatsLista"></div>
+            <p class="ag-empty" id="agPantallaStatsEmpty" style="display:none">Sin datos en este período.</p>
+          </div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.2rem">
+            <p class="ag-section-label" style="margin-bottom:1rem">📊 Últimos 7 días</p>
+            <div class="ag-fin-pie-wrap">
+              <div class="ag-fin-pie" id="agPantallaSemanaPie"></div>
+              <p class="ag-empty" id="agPantallaSemanaPieEmpty" style="display:none;padding:1rem 0">Todavía no cargaste nada esta semana.</p>
+            </div>
+            <div class="ag-fin-leyenda" id="agPantallaSemanaLeyenda"></div>
+            <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:.9rem">Total últimos 7 días: <strong id="agPantallaTotalSemana" style="color:var(--cyan)">0 min</strong></p>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -724,6 +803,33 @@
       <div style="display:flex;gap:.5rem">
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoria">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionCategoria" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de categorías de Pantalla -->
+  <div class="modal-overlay" id="agModalCategoriasPantalla">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalCategoriasPantalla">✕</button>
+      <h2 class="modal__title">Categorías de pantalla</h2>
+      <div id="agCategoriasPantallaLista" style="margin-bottom:1.3rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar categoría nueva</p>
+      <input type="hidden" id="agCategoriaPantallaEditId"/>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="agCategoriaPantallaNombre" class="form-input" placeholder="Ej: Instagram"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agCategoriaPantallaColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <p class="form-error" id="agCategoriaPantallaError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoriaPantalla">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionCategoriaPantalla" style="display:none">Cancelar edición</button>
       </div>
     </div>
   </div>

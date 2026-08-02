@@ -299,10 +299,12 @@
     document.getElementById('agVistaCarpetas').style.display = vistaActual === 'carpetas' ? 'block' : 'none'
     document.getElementById('agVistaFinanzas').style.display = vistaActual === 'finanzas' ? 'block' : 'none'
     document.getElementById('agVistaEstudio').style.display = vistaActual === 'estudio' ? 'block' : 'none'
+    document.getElementById('agVistaPantalla').style.display = vistaActual === 'pantalla' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
     if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
     if (vistaActual === 'estudio') cargarEstudioTab()
+    if (vistaActual === 'pantalla') cargarPantallaTab()
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -1492,6 +1494,395 @@
     document.getElementById('agExamenAddWrap').style.display = 'none'
     await cargarExamenes()
   })
+
+  // ══════════════════════════════════════════
+  //  PANTALLA — carga manual de tiempo de uso, con categorías propias
+  // ══════════════════════════════════════════
+  let pantallaFechaSeleccionada = hoyISO()
+  let pantallaRegistrosDia = []
+  let pantallaRegistrosSemana = []
+  let pantallaCategorias = []
+  let pantallaCategoriaSeleccionadaId = null
+  let pantallaCargada = false
+
+  const COLORES_PANTALLA = ['#159A9C', '#9d7fe8', '#e8608f', '#3ecf8e', '#f59e0b', '#4f8ff7', '#d1495b', '#c9973a']
+  const COLOR_SIN_CATEGORIA = '#607080'
+
+  function formatoHorasMin(totalMin) {
+    if (!totalMin) return '0 min'
+    const h = Math.floor(totalMin / 60), m = totalMin % 60
+    if (h === 0) return `${m} min`
+    if (m === 0) return `${h}h`
+    return `${h}h ${m}m`
+  }
+
+  async function cargarPantallaTab() {
+    if (!pantallaCargada) {
+      document.getElementById('agPantallaFechaInput').value = pantallaFechaSeleccionada
+      pantallaCargada = true
+    }
+    await cargarCategoriasPantalla()
+    await cargarPantallaDia()
+    await cargarPantallaSemana()
+    await cargarPantallaStats()
+  }
+
+  // ── Categorías propias (nombre + color) ────────────────────────────
+  async function cargarCategoriasPantalla() {
+    const { data, error } = await supabase.from('pantalla_categorias').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[pantalla] error al cargar categorías:', error); return }
+    pantallaCategorias = data || []
+    if (pantallaCategoriaSeleccionadaId === null && pantallaCategorias.length > 0) pantallaCategoriaSeleccionadaId = pantallaCategorias[0].id
+    renderPantallaCategoriaSelect()
+  }
+
+  function renderPantallaCategoriaSelect() {
+    const cont = document.getElementById('agPantallaCategoriaSelect')
+    if (pantallaCategorias.length === 0) {
+      cont.innerHTML = '<p style="font-size:.78rem;color:var(--muted);margin:0 0 .8rem">Todavía no creaste ninguna categoría. Tocá "⚙ Categorías" para agregar la primera.</p>'
+      return
+    }
+    cont.innerHTML = pantallaCategorias.map(c => `
+      <button type="button" class="ag-tipo-btn" data-cat-id="${c.id}"
+        style="${c.id === pantallaCategoriaSeleccionadaId ? `border-color:${c.color};background:${c.color}22;color:${c.color}` : ''}">
+        ${c.nombre}
+      </button>
+    `).join('')
+    cont.querySelectorAll('.ag-tipo-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pantallaCategoriaSeleccionadaId = Number(btn.dataset.catId)
+        renderPantallaCategoriaSelect()
+      })
+    })
+  }
+
+  document.getElementById('agBtnCategoriasPantalla').addEventListener('click', () => {
+    renderCategoriasPantallaLista()
+    resetFormCategoriaPantalla()
+    document.getElementById('agModalCategoriasPantalla').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalCategoriasPantalla').addEventListener('click', () =>
+    document.getElementById('agModalCategoriasPantalla').classList.remove('activo'))
+
+  function renderCategoriasPantallaLista() {
+    const cont = document.getElementById('agCategoriasPantallaLista')
+    if (!pantallaCategorias.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:.78rem">Todavía no hay categorías.</p>'; return }
+    cont.innerHTML = pantallaCategorias.map(c => `
+      <div class="ag-tipo-row">
+        <div class="ag-tipo-row__color" style="background:${c.color}"></div>
+        <span class="ag-tipo-row__nombre">${c.nombre}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarCategoriaPantalla(${c.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarCategoriaPantalla(${c.id})">🗑</button>
+      </div>
+    `).join('')
+  }
+
+  function resetFormCategoriaPantalla() {
+    document.getElementById('agCategoriaPantallaEditId').value = ''
+    document.getElementById('agCategoriaPantallaNombre').value = ''
+    document.getElementById('agCategoriaPantallaColor').value = '#159A9C'
+    document.getElementById('agCategoriaPantallaError').textContent = ''
+    document.getElementById('agBtnGuardarCategoriaPantalla').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionCategoriaPantalla').style.display = 'none'
+  }
+
+  window._agEditarCategoriaPantalla = function (id) {
+    const c = pantallaCategorias.find(x => x.id === id)
+    if (!c) return
+    document.getElementById('agCategoriaPantallaEditId').value = c.id
+    document.getElementById('agCategoriaPantallaNombre').value = c.nombre
+    document.getElementById('agCategoriaPantallaColor').value = c.color
+    document.getElementById('agBtnGuardarCategoriaPantalla').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionCategoriaPantalla').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionCategoriaPantalla').addEventListener('click', resetFormCategoriaPantalla)
+
+  window._agEliminarCategoriaPantalla = async function (id) {
+    if (!confirm('¿Eliminar esta categoría? Los registros que ya la usan quedan sin categoría, pero no se borran.')) return
+    const { error } = await supabase.from('pantalla_categorias').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    if (pantallaCategoriaSeleccionadaId === id) pantallaCategoriaSeleccionadaId = null
+    await cargarCategoriasPantalla()
+    renderCategoriasPantallaLista()
+    await cargarPantallaDia()
+    await cargarPantallaSemana()
+    await cargarPantallaStats()
+  }
+
+  document.getElementById('agBtnGuardarCategoriaPantalla').addEventListener('click', async () => {
+    const errEl = document.getElementById('agCategoriaPantallaError')
+    const id = document.getElementById('agCategoriaPantallaEditId').value
+    const datos = {
+      nombre: document.getElementById('agCategoriaPantallaNombre').value.trim(),
+      color: document.getElementById('agCategoriaPantallaColor').value,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('pantalla_categorias').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('pantalla_categorias').insert([{ ...datos, orden: pantallaCategorias.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarCategoriasPantalla()
+    renderCategoriasPantallaLista()
+    resetFormCategoriaPantalla()
+    await cargarPantallaDia()
+    await cargarPantallaSemana()
+    await cargarPantallaStats()
+  })
+
+  // ── Carga y borrado de registros de uso ────────────────────────────
+  document.getElementById('agPantallaFechaInput').addEventListener('change', async e => {
+    pantallaFechaSeleccionada = e.target.value || hoyISO()
+    await cargarPantallaDia()
+  })
+
+  async function cargarPantallaDia() {
+    document.getElementById('agPantallaFechaLabel').textContent =
+      new Date(pantallaFechaSeleccionada + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const { data, error } = await supabase.from('pantalla_registros')
+      .select('*, categoria:pantalla_categorias(id,nombre,color)')
+      .eq('fecha', pantallaFechaSeleccionada).order('id', { ascending: true })
+    if (error) { console.error('[pantalla] error al cargar el día:', error); return }
+    pantallaRegistrosDia = data || []
+    renderPantallaDia()
+  }
+
+  function nombreDe(r) { return r.categoria ? r.categoria.nombre : (r.app || 'Sin categoría') }
+  function colorDe(r) { return r.categoria ? r.categoria.color : COLOR_SIN_CATEGORIA }
+
+  function renderPantallaDia() {
+    const cont = document.getElementById('agPantallaLista')
+    const listaEmpty = document.getElementById('agPantallaListaEmpty')
+    if (pantallaRegistrosDia.length === 0) {
+      cont.innerHTML = ''
+      listaEmpty.style.display = 'block'
+    } else {
+      listaEmpty.style.display = 'none'
+      cont.innerHTML = pantallaRegistrosDia.map(r => `
+        <div class="ag-examen-row">
+          <div class="ag-tipo-row__color" style="background:${colorDe(r)};flex-shrink:0"></div>
+          <span class="ag-examen-row__nombre">${nombreDe(r)}</span>
+          <span class="ag-examen-row__dias">${formatoHorasMin(r.minutos)}</span>
+          <button class="ag-item__btn" onclick="window._agEliminarPantalla(${r.id})">🗑</button>
+        </div>
+      `).join('')
+    }
+
+    const total = pantallaRegistrosDia.reduce((a, r) => a + r.minutos, 0)
+    document.getElementById('agPantallaTotalDia').textContent = formatoHorasMin(total)
+    const pie = document.getElementById('agPantallaPie')
+    const pieEmpty = document.getElementById('agPantallaPieEmpty')
+    const leyenda = document.getElementById('agPantallaLeyenda')
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      pieEmpty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    pieEmpty.style.display = 'none'
+
+    const porCat = {}
+    pantallaRegistrosDia.forEach(r => {
+      const key = nombreDe(r)
+      if (!porCat[key]) porCat[key] = { min: 0, color: colorDe(r) }
+      porCat[key].min += r.minutos
+    })
+    let acumulado = 0
+    const stops = []
+    const filas = Object.entries(porCat).sort((a, b) => b[1].min - a[1].min).map(([nombre, info]) => {
+      const pct = (info.min / total) * 100
+      stops.push(`${info.color} ${acumulado}% ${acumulado + pct}%`)
+      acumulado += pct
+      return { nombre, min: info.min, color: info.color, pct }
+    })
+    pie.style.background = `conic-gradient(${stops.join(', ')})`
+    leyenda.innerHTML = filas.map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.nombre} · ${formatoHorasMin(f.min)}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
+  document.getElementById('agBtnAgregarPantalla').addEventListener('click', async () => {
+    const errEl = document.getElementById('agPantallaError')
+    errEl.textContent = ''
+    if (!pantallaCategoriaSeleccionadaId) { errEl.textContent = 'Elegí una categoría (o creá una con "⚙ Categorías").'; return }
+    const hs = Number(document.getElementById('agPantallaHsInput').value) || 0
+    const min = Number(document.getElementById('agPantallaMinInput').value) || 0
+    const minutos = hs * 60 + min
+    if (minutos <= 0) { errEl.textContent = 'Cargá al menos algún minuto u hora.'; return }
+    const { error } = await supabase.from('pantalla_registros').insert([{ fecha: pantallaFechaSeleccionada, categoria_id: pantallaCategoriaSeleccionadaId, minutos }])
+    if (error) { errEl.textContent = 'Error: ' + error.message; return }
+    document.getElementById('agPantallaHsInput').value = ''
+    document.getElementById('agPantallaMinInput').value = ''
+    await cargarPantallaDia()
+    await cargarPantallaSemana()
+    await cargarPantallaStats()
+  })
+
+  window._agEliminarPantalla = async function (id) {
+    if (!confirm('¿Eliminar este registro?')) return
+    const { error } = await supabase.from('pantalla_registros').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarPantallaDia()
+    await cargarPantallaSemana()
+    await cargarPantallaStats()
+  }
+
+  async function cargarPantallaSemana() {
+    const desde = new Date(); desde.setDate(desde.getDate() - 6)
+    const desdeISO = desde.getFullYear() + '-' + String(desde.getMonth()+1).padStart(2,'0') + '-' + String(desde.getDate()).padStart(2,'0')
+    const { data, error } = await supabase.from('pantalla_registros').select('*').gte('fecha', desdeISO)
+    if (error) { console.error('[pantalla] error al cargar la semana:', error); return }
+    pantallaRegistrosSemana = data || []
+    renderPantallaSemana()
+  }
+
+  function renderPantallaSemana() {
+    const porDia = {}
+    const dias = []
+    const hoy = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoy); d.setDate(d.getDate() - i)
+      const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+      dias.push({ iso, nombre: d.toLocaleDateString('es-AR', { weekday: 'short' }) })
+      porDia[iso] = 0
+    }
+    pantallaRegistrosSemana.forEach(r => { if (porDia[r.fecha] !== undefined) porDia[r.fecha] += r.minutos })
+
+    const total = Object.values(porDia).reduce((a, b) => a + b, 0)
+    document.getElementById('agPantallaTotalSemana').textContent = formatoHorasMin(total)
+    const pie = document.getElementById('agPantallaSemanaPie')
+    const empty = document.getElementById('agPantallaSemanaPieEmpty')
+    const leyenda = document.getElementById('agPantallaSemanaLeyenda')
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      empty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    empty.style.display = 'none'
+
+    let acumulado = 0
+    const stops = []
+    const filas = dias.map((d, i) => {
+      const min = porDia[d.iso]
+      const pct = (min / total) * 100
+      if (min > 0) { stops.push(`${COLORES_PANTALLA[i]} ${acumulado}% ${acumulado + pct}%`); acumulado += pct }
+      return { nombre: d.nombre, min, color: COLORES_PANTALLA[i], pct }
+    })
+    pie.style.background = stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--bg3)'
+    leyenda.innerHTML = filas.filter(f => f.min > 0).map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.nombre} · ${formatoHorasMin(f.min)}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
+  // ── Estadísticas (período elegible: 7 / 30 días / todo) ────────────
+  let pantallaStatsPeriodo = '7'
+  let pantallaRegistrosStats = []
+
+  document.getElementById('agPantallaStatsPeriodo').addEventListener('click', async e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agPantallaStatsPeriodo .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    pantallaStatsPeriodo = btn.dataset.dias
+    await cargarPantallaStats()
+  })
+
+  async function cargarPantallaStats() {
+    let query = supabase.from('pantalla_registros').select('*, categoria:pantalla_categorias(id,nombre,color)').order('fecha', { ascending: true })
+    if (pantallaStatsPeriodo !== 'todo') {
+      const desde = new Date(); desde.setDate(desde.getDate() - (Number(pantallaStatsPeriodo) - 1))
+      const desdeISO = desde.getFullYear() + '-' + String(desde.getMonth()+1).padStart(2,'0') + '-' + String(desde.getDate()).padStart(2,'0')
+      query = query.gte('fecha', desdeISO)
+    }
+    const { data, error } = await query
+    if (error) { console.error('[pantalla] error al cargar estadísticas:', error); return }
+    pantallaRegistrosStats = data || []
+    renderPantallaStats()
+  }
+
+  function renderPantallaStats() {
+    const lista = document.getElementById('agPantallaStatsLista')
+    const empty = document.getElementById('agPantallaStatsEmpty')
+    const diasInfoEl = document.getElementById('agPStatDiasRegistrados')
+
+    if (pantallaRegistrosStats.length === 0) {
+      document.getElementById('agPStatTotal').textContent = '0h'
+      document.getElementById('agPStatPromedio').textContent = '0h'
+      document.getElementById('agPStatTop').textContent = '—'
+      document.getElementById('agPStatRecord').textContent = '—'
+      diasInfoEl.textContent = ''
+      lista.innerHTML = ''
+      empty.style.display = 'block'
+      return
+    }
+    empty.style.display = 'none'
+
+    const totalGeneral = pantallaRegistrosStats.reduce((a, r) => a + r.minutos, 0)
+
+    // Cuántos días abarca el período (para el promedio diario "real", contando
+    // también los días en los que no cargaste nada)
+    let periodDays
+    if (pantallaStatsPeriodo === 'todo') {
+      const fechas = pantallaRegistrosStats.map(r => r.fecha).sort()
+      const primera = new Date(fechas[0] + 'T00:00:00')
+      const hoy = new Date(hoyISO() + 'T00:00:00')
+      periodDays = Math.max(1, Math.round((hoy - primera) / 86400000) + 1)
+    } else {
+      periodDays = Number(pantallaStatsPeriodo)
+    }
+
+    document.getElementById('agPStatTotal').textContent = formatoHorasMin(totalGeneral)
+    document.getElementById('agPStatPromedio').textContent = formatoHorasMin(Math.round(totalGeneral / periodDays))
+
+    const porCat = {}
+    const porFecha = {}
+    pantallaRegistrosStats.forEach(r => {
+      const nombre = nombreDe(r), color = colorDe(r)
+      if (!porCat[nombre]) porCat[nombre] = { nombre, color, total: 0 }
+      porCat[nombre].total += r.minutos
+      porFecha[r.fecha] = (porFecha[r.fecha] || 0) + r.minutos
+    })
+
+    const filas = Object.values(porCat).sort((a, b) => b.total - a.total).map(c => ({
+      ...c,
+      pct: (c.total / totalGeneral) * 100,
+      promedio: c.total / periodDays,
+    }))
+
+    document.getElementById('agPStatTop').textContent = filas.length ? filas[0].nombre : '—'
+
+    const fechasConRegistro = Object.keys(porFecha)
+    const diaRecordEntry = Object.entries(porFecha).sort((a, b) => b[1] - a[1])[0]
+    if (diaRecordEntry) {
+      const [fecha, min] = diaRecordEntry
+      const fechaFmt = new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+      document.getElementById('agPStatRecord').textContent = `${fechaFmt} · ${formatoHorasMin(min)}`
+    }
+
+    diasInfoEl.textContent = `Cargaste datos en ${fechasConRegistro.length} de los últimos ${periodDays} día${periodDays === 1 ? '' : 's'}.`
+
+    lista.innerHTML = filas.map(f => `
+      <div class="ag-examen-row">
+        <div class="ag-tipo-row__color" style="background:${f.color};flex-shrink:0"></div>
+        <span class="ag-examen-row__nombre">${f.nombre}</span>
+        <span style="font-size:.7rem;color:var(--muted);margin-right:.7rem;white-space:nowrap">${f.pct.toFixed(0)}% · prom. ${formatoHorasMin(Math.round(f.promedio))}/día</span>
+        <span class="ag-examen-row__dias">${formatoHorasMin(f.total)}</span>
+      </div>
+    `).join('')
+  }
 
   // ══════════════════════════════════════════
   //  INIT
