@@ -1194,6 +1194,7 @@
   let timerSegundosRestantes = timerDuracionEstudio * 60
   let timerInterval = null
   let timerPausado = false
+  let timerFinTimestamp = null    // Date.now() del momento en que el ciclo actual debería terminar
   let estudioCargado = false
 
   async function cargarEstudioTab() {
@@ -1236,10 +1237,19 @@
     } catch (e) { /* si el navegador bloquea audio sin interacción previa, no pasa nada grave */ }
   }
 
+  // Importante: el navegador puede frenar los setInterval de una pestaña que
+  // quedó en segundo plano (para ahorrar batería), así que un tick del
+  // intervalo NO siempre dura exactamente 1 segundo real. Por eso acá no
+  // restamos "1" en cada tick — calculamos los segundos restantes comparando
+  // la hora actual contra el momento exacto en que el ciclo debería terminar.
+  // Así, aunque el navegador dispare los ticks más espaciados de lo normal,
+  // el conteo siempre muestra el tiempo real que falta, sin atrasarse.
   function iniciarIntervaloTimer() {
     clearInterval(timerInterval)
+    timerFinTimestamp = Date.now() + timerSegundosRestantes * 1000
     timerInterval = setInterval(() => {
-      timerSegundosRestantes--
+      const restante = Math.round((timerFinTimestamp - Date.now()) / 1000)
+      timerSegundosRestantes = Math.max(0, restante)
       if (timerSegundosRestantes <= 0) { terminarCicloTimer(); return }
       actualizarDisplayTimer()
     }, 1000)
