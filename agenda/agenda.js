@@ -1272,8 +1272,15 @@
       timerModo = 'estudio'
       timerSegundosRestantes = timerDuracionEstudio * 60
     }
+    // El ciclo NO arranca solo — se queda listo y a la espera de que
+    // el usuario toque "Iniciar" para el siguiente (estudio o descanso).
+    clearInterval(timerInterval); timerInterval = null
+    timerPausado = false
+    document.getElementById('agTimerBtnIniciar').style.display = 'inline-flex'
+    document.getElementById('agTimerBtnPausar').style.display = 'none'
+    document.getElementById('agTimerBtnPausar').textContent = '⏸ Pausar'
+    document.getElementById('agTimerBtnDetener').style.display = 'none'
     actualizarDisplayTimer()
-    iniciarIntervaloTimer() // el ciclo siguiente arranca solo
   }
 
   document.querySelectorAll('#agTimerDuraciones .ag-tipo-btn').forEach(btn => {
