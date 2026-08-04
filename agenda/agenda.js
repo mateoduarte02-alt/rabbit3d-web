@@ -1534,12 +1534,15 @@
   async function cargarPantallaTab() {
     if (!pantallaCargada) {
       document.getElementById('agPantallaFechaInput').value = pantallaFechaSeleccionada
+      document.getElementById('agPcTotalFechaInput').value = pantallaPcFecha
       pantallaCargada = true
     }
     await cargarCategoriasPantalla()
     await cargarPantallaDia()
     await cargarPantallaSemana()
     await cargarPantallaStats()
+    await cargarPcTotalDia()
+    await cargarPcTotalSemana()
   }
 
   // ── Categorías propias (nombre + color) ────────────────────────────
@@ -1549,6 +1552,20 @@
     pantallaCategorias = data || []
     if (pantallaCategoriaSeleccionadaId === null && pantallaCategorias.length > 0) pantallaCategoriaSeleccionadaId = pantallaCategorias[0].id
     renderPantallaCategoriaSelect()
+    actualizarVisibilidadDispositivo()
+  }
+
+  function categoriaEsYoutube(id) {
+    const c = pantallaCategorias.find(x => x.id === id)
+    return !!(c && c.nombre.trim().toLowerCase() === 'youtube')
+  }
+
+  function actualizarVisibilidadDispositivo() {
+    const esYoutube = categoriaEsYoutube(pantallaCategoriaSeleccionadaId)
+    document.getElementById('agPantallaDispositivoSelect').style.display = esYoutube ? 'flex' : 'none'
+    if (!esYoutube) pantallaDispositivoSeleccionado = null
+    else if (!pantallaDispositivoSeleccionado) pantallaDispositivoSeleccionado = 'celular'
+    renderPantallaDispositivoSelect()
   }
 
   function renderPantallaCategoriaSelect() {
@@ -1567,6 +1584,7 @@
       btn.addEventListener('click', () => {
         pantallaCategoriaSeleccionadaId = Number(btn.dataset.catId)
         renderPantallaCategoriaSelect()
+        actualizarVisibilidadDispositivo()
       })
     })
   }
@@ -1723,7 +1741,7 @@
     if (!total) {
       pieEl.style.background = 'var(--bg3)'
       if (pieEmptyEl) pieEmptyEl.style.display = 'block'
-      leyendaEl.innerHTML = ''
+      if (leyendaEl) leyendaEl.innerHTML = ''
       return
     }
     if (pieEmptyEl) pieEmptyEl.style.display = 'none'
@@ -1742,7 +1760,7 @@
       return { label: etiqueta ? `${g.nombre} ${etiqueta}` : g.nombre, min: g.total, color, pct }
     })
     pieEl.style.background = `conic-gradient(${stops.join(', ')})`
-    leyendaEl.innerHTML = filas.sort((a, b) => b.min - a.min).map(f => `
+    if (leyendaEl) leyendaEl.innerHTML = filas.sort((a, b) => b.min - a.min).map(f => `
       <div class="ag-fin-leyenda__fila">
         <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
         ${f.label} · ${formatoHorasMin(f.min)}
@@ -1800,7 +1818,7 @@
     document.getElementById('agBtnAgregarPantalla').textContent = 'Guardar cambios'
     document.getElementById('agBtnCancelarEdicionPantalla').style.display = 'inline-flex'
     renderPantallaCategoriaSelect()
-    renderPantallaDispositivoSelect()
+    actualizarVisibilidadDispositivo()
     document.getElementById('agPantallaHsInput').scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
   document.getElementById('agBtnCancelarEdicionPantalla').addEventListener('click', resetFormPantalla)
@@ -1926,7 +1944,7 @@
       pantallaRegistrosStats,
       document.getElementById('agPStatsPie'),
       document.getElementById('agPStatsPieEmpty'),
-      document.getElementById('agPStatsLeyenda')
+      null
     )
 
     if (pantallaRegistrosStats.length === 0) {
@@ -1991,6 +2009,88 @@
         <span class="ag-examen-row__nombre">${f.nombre}</span>
         <span style="font-size:.7rem;color:var(--muted);margin-right:.7rem;white-space:nowrap">${f.pct.toFixed(0)}% · prom. ${formatoHorasMin(Math.round(f.promedio))}/día</span>
         <span class="ag-examen-row__dias">${formatoHorasMin(f.total)}</span>
+      </div>
+    `).join('')
+  }
+
+  // ── Tiempo total en PC (un valor por día, sin desglose por app) ────
+  let pantallaPcFecha = hoyISO()
+  let pantallaPcRegistrosSemana = []
+
+  document.getElementById('agPcTotalFechaInput').addEventListener('change', async e => {
+    pantallaPcFecha = e.target.value || hoyISO()
+    await cargarPcTotalDia()
+  })
+
+  async function cargarPcTotalDia() {
+    const { data, error } = await supabase.from('pantalla_pc_total').select('*').eq('fecha', pantallaPcFecha).maybeSingle()
+    if (error) { console.error('[pantalla] error al cargar total de PC:', error); return }
+    document.getElementById('agPcTotalHsInput').value = data ? Math.floor(data.minutos / 60) || '' : ''
+    document.getElementById('agPcTotalMinInput').value = data ? (data.minutos % 60) || '' : ''
+  }
+
+  document.getElementById('agBtnGuardarPcTotal').addEventListener('click', async () => {
+    const errEl = document.getElementById('agPcTotalError')
+    errEl.textContent = ''
+    const hs = Number(document.getElementById('agPcTotalHsInput').value) || 0
+    const min = Number(document.getElementById('agPcTotalMinInput').value) || 0
+    const minutos = hs * 60 + min
+    if (minutos <= 0) { errEl.textContent = 'Cargá al menos algún minuto u hora.'; return }
+    const { error } = await supabase.from('pantalla_pc_total')
+      .upsert([{ fecha: pantallaPcFecha, minutos, updated_at: new Date().toISOString() }], { onConflict: 'fecha' })
+    if (error) { errEl.textContent = 'Error: ' + error.message; return }
+    await cargarPcTotalSemana()
+  })
+
+  async function cargarPcTotalSemana() {
+    const desde = new Date(); desde.setDate(desde.getDate() - 6)
+    const desdeISO = desde.getFullYear() + '-' + String(desde.getMonth()+1).padStart(2,'0') + '-' + String(desde.getDate()).padStart(2,'0')
+    const { data, error } = await supabase.from('pantalla_pc_total').select('*').gte('fecha', desdeISO)
+    if (error) { console.error('[pantalla] error al cargar semana de PC:', error); return }
+    pantallaPcRegistrosSemana = data || []
+    renderPcTotalSemana()
+  }
+
+  function renderPcTotalSemana() {
+    const porDia = {}
+    const dias = []
+    const hoy = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoy); d.setDate(d.getDate() - i)
+      const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+      dias.push({ iso, nombre: d.toLocaleDateString('es-AR', { weekday: 'short' }) })
+      porDia[iso] = 0
+    }
+    pantallaPcRegistrosSemana.forEach(r => { if (porDia[r.fecha] !== undefined) porDia[r.fecha] = r.minutos })
+
+    const total = Object.values(porDia).reduce((a, b) => a + b, 0)
+    document.getElementById('agPcTotalSemanaTotal').textContent = formatoHorasMin(total)
+    const pie = document.getElementById('agPcTotalPie')
+    const empty = document.getElementById('agPcTotalPieEmpty')
+    const leyenda = document.getElementById('agPcTotalLeyenda')
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      empty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    empty.style.display = 'none'
+
+    let acumulado = 0
+    const stops = []
+    const filas = dias.map((d, i) => {
+      const min = porDia[d.iso]
+      const pct = (min / total) * 100
+      if (min > 0) { stops.push(`${COLORES_PANTALLA[i]} ${acumulado}% ${acumulado + pct}%`); acumulado += pct }
+      return { nombre: d.nombre, min, color: COLORES_PANTALLA[i], pct }
+    })
+    pie.style.background = stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--bg3)'
+    leyenda.innerHTML = filas.filter(f => f.min > 0).map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.nombre} · ${formatoHorasMin(f.min)}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
       </div>
     `).join('')
   }
