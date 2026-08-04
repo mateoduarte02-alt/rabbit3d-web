@@ -1258,6 +1258,13 @@
   }
 
   async function terminarCicloTimer() {
+    // Importante: cortamos el intervalo ACÁ, antes de hacer cualquier cosa
+    // async (guardar la sesión implica esperar la respuesta de la base de
+    // datos). Si no lo hacíamos primero, el intervalo viejo podía seguir
+    // disparando mientras esperábamos esa respuesta, y este mismo ciclo
+    // terminaba registrándose varias veces (por eso contaba de más).
+    clearInterval(timerInterval); timerInterval = null
+
     sonarBeep()
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(timerModo === 'estudio' ? '⏱️ ¡Tiempo de estudio terminado!' : '☕ Fin del descanso', {
@@ -1274,7 +1281,6 @@
     }
     // El ciclo NO arranca solo — se queda listo y a la espera de que
     // el usuario toque "Iniciar" para el siguiente (estudio o descanso).
-    clearInterval(timerInterval); timerInterval = null
     timerPausado = false
     document.getElementById('agTimerBtnIniciar').style.display = 'inline-flex'
     document.getElementById('agTimerBtnPausar').style.display = 'none'
@@ -1510,6 +1516,8 @@
   let pantallaRegistrosSemana = []
   let pantallaCategorias = []
   let pantallaCategoriaSeleccionadaId = null
+  let pantallaDispositivoSeleccionado = 'celular'
+  let pantallaRegistroEditId = null
   let pantallaCargada = false
 
   const COLORES_PANTALLA = ['#159A9C', '#9d7fe8', '#e8608f', '#3ecf8e', '#f59e0b', '#4f8ff7', '#d1495b', '#c9973a']
@@ -1562,6 +1570,19 @@
       })
     })
   }
+
+  function renderPantallaDispositivoSelect() {
+    document.querySelectorAll('#agPantallaDispositivoSelect .ag-tipo-btn').forEach(btn => {
+      btn.classList.toggle('activo', btn.dataset.disp === pantallaDispositivoSeleccionado)
+    })
+  }
+  document.querySelectorAll('#agPantallaDispositivoSelect .ag-tipo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pantallaDispositivoSeleccionado = btn.dataset.disp
+      renderPantallaDispositivoSelect()
+    })
+  })
+  renderPantallaDispositivoSelect()
 
   document.getElementById('agBtnCategoriasPantalla').addEventListener('click', () => {
     renderCategoriasPantallaLista()
@@ -1659,6 +1680,77 @@
   function nombreDe(r) { return r.categoria ? r.categoria.nombre : (r.app || 'Sin categoría') }
   function colorDe(r) { return r.categoria ? r.categoria.color : COLOR_SIN_CATEGORIA }
 
+  // ── Mismo color, dos tonos — para diferenciar celular/PC dentro de la
+  // misma categoría en los gráficos, sin que deje de "leerse" como el mismo tema ──
+  function hexARgb(hex) {
+    hex = hex.replace('#', '')
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('')
+    const num = parseInt(hex, 16)
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
+  }
+  function mezclarColor(hex, hexObjetivo, pct) {
+    const c1 = hexARgb(hex), c2 = hexARgb(hexObjetivo)
+    const canal = (a, b) => Math.max(0, Math.min(255, Math.round(a + (b - a) * pct)))
+    return '#' + [canal(c1.r, c2.r), canal(c1.g, c2.g), canal(c1.b, c2.b)].map(v => v.toString(16).padStart(2, '0')).join('')
+  }
+  function colorPorDispositivo(colorBase, dispositivo) {
+    if (dispositivo === 'pc') return mezclarColor(colorBase, '#000000', 0.35) // más oscuro
+    return colorBase // celular o sin especificar: color base tal cual
+  }
+  function etiquetaDispositivo(dispositivo) {
+    if (dispositivo === 'celular') return '📱'
+    if (dispositivo === 'pc') return '💻'
+    return ''
+  }
+
+  // Agrupa una lista de registros por categoría + dispositivo, para armar
+  // tortas donde cada categoría se subdivide en celular/PC con el mismo
+  // color base, en dos tonos.
+  function agruparPorCategoriaYDispositivo(registros) {
+    const grupos = {}
+    registros.forEach(r => {
+      const key = nombreDe(r) + '||' + (r.dispositivo || '')
+      if (!grupos[key]) grupos[key] = { nombre: nombreDe(r), colorBase: colorDe(r), dispositivo: r.dispositivo || null, total: 0 }
+      grupos[key].total += r.minutos
+    })
+    return Object.values(grupos)
+  }
+
+  // Dibuja una torta conic-gradient + leyenda a partir de una lista de
+  // registros, subdividiendo por dispositivo dentro de cada categoría.
+  function dibujarTortaPorCategoria(registros, pieEl, pieEmptyEl, leyendaEl) {
+    const total = registros.reduce((a, r) => a + r.minutos, 0)
+    if (!total) {
+      pieEl.style.background = 'var(--bg3)'
+      if (pieEmptyEl) pieEmptyEl.style.display = 'block'
+      leyendaEl.innerHTML = ''
+      return
+    }
+    if (pieEmptyEl) pieEmptyEl.style.display = 'none'
+
+    const grupos = agruparPorCategoriaYDispositivo(registros)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre) || (a.dispositivo || '').localeCompare(b.dispositivo || ''))
+
+    let acumulado = 0
+    const stops = []
+    const filas = grupos.map(g => {
+      const pct = (g.total / total) * 100
+      const color = colorPorDispositivo(g.colorBase, g.dispositivo)
+      stops.push(`${color} ${acumulado}% ${acumulado + pct}%`)
+      acumulado += pct
+      const etiqueta = etiquetaDispositivo(g.dispositivo)
+      return { label: etiqueta ? `${g.nombre} ${etiqueta}` : g.nombre, min: g.total, color, pct }
+    })
+    pieEl.style.background = `conic-gradient(${stops.join(', ')})`
+    leyendaEl.innerHTML = filas.sort((a, b) => b.min - a.min).map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.label} · ${formatoHorasMin(f.min)}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
   function renderPantallaDia() {
     const cont = document.getElementById('agPantallaLista')
     const listaEmpty = document.getElementById('agPantallaListaEmpty')
@@ -1669,51 +1761,49 @@
       listaEmpty.style.display = 'none'
       cont.innerHTML = pantallaRegistrosDia.map(r => `
         <div class="ag-examen-row">
-          <div class="ag-tipo-row__color" style="background:${colorDe(r)};flex-shrink:0"></div>
-          <span class="ag-examen-row__nombre">${nombreDe(r)}</span>
+          <div class="ag-tipo-row__color" style="background:${colorPorDispositivo(colorDe(r), r.dispositivo)};flex-shrink:0"></div>
+          <span class="ag-examen-row__nombre">${nombreDe(r)} ${etiquetaDispositivo(r.dispositivo)}</span>
           <span class="ag-examen-row__dias">${formatoHorasMin(r.minutos)}</span>
-          <button class="ag-item__btn" onclick="window._agEliminarPantalla(${r.id})">🗑</button>
+          <button class="ag-item__btn" title="Editar" onclick="window._agEditarPantalla(${r.id})">✎</button>
+          <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarPantalla(${r.id})">🗑</button>
         </div>
       `).join('')
     }
 
     const total = pantallaRegistrosDia.reduce((a, r) => a + r.minutos, 0)
     document.getElementById('agPantallaTotalDia').textContent = formatoHorasMin(total)
-    const pie = document.getElementById('agPantallaPie')
-    const pieEmpty = document.getElementById('agPantallaPieEmpty')
-    const leyenda = document.getElementById('agPantallaLeyenda')
-
-    if (!total) {
-      pie.style.background = 'var(--bg3)'
-      pieEmpty.style.display = 'block'
-      leyenda.innerHTML = ''
-      return
-    }
-    pieEmpty.style.display = 'none'
-
-    const porCat = {}
-    pantallaRegistrosDia.forEach(r => {
-      const key = nombreDe(r)
-      if (!porCat[key]) porCat[key] = { min: 0, color: colorDe(r) }
-      porCat[key].min += r.minutos
-    })
-    let acumulado = 0
-    const stops = []
-    const filas = Object.entries(porCat).sort((a, b) => b[1].min - a[1].min).map(([nombre, info]) => {
-      const pct = (info.min / total) * 100
-      stops.push(`${info.color} ${acumulado}% ${acumulado + pct}%`)
-      acumulado += pct
-      return { nombre, min: info.min, color: info.color, pct }
-    })
-    pie.style.background = `conic-gradient(${stops.join(', ')})`
-    leyenda.innerHTML = filas.map(f => `
-      <div class="ag-fin-leyenda__fila">
-        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
-        ${f.nombre} · ${formatoHorasMin(f.min)}
-        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
-      </div>
-    `).join('')
+    dibujarTortaPorCategoria(
+      pantallaRegistrosDia,
+      document.getElementById('agPantallaPie'),
+      document.getElementById('agPantallaPieEmpty'),
+      document.getElementById('agPantallaLeyenda')
+    )
   }
+
+  function resetFormPantalla() {
+    pantallaRegistroEditId = null
+    document.getElementById('agPantallaHsInput').value = ''
+    document.getElementById('agPantallaMinInput').value = ''
+    document.getElementById('agBtnAgregarPantalla').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionPantalla').style.display = 'none'
+    document.getElementById('agPantallaError').textContent = ''
+  }
+
+  window._agEditarPantalla = function (id) {
+    const r = pantallaRegistrosDia.find(x => x.id === id)
+    if (!r) return
+    pantallaRegistroEditId = id
+    pantallaCategoriaSeleccionadaId = r.categoria_id || (r.categoria ? r.categoria.id : null)
+    pantallaDispositivoSeleccionado = r.dispositivo || 'celular'
+    document.getElementById('agPantallaHsInput').value = Math.floor(r.minutos / 60) || ''
+    document.getElementById('agPantallaMinInput').value = (r.minutos % 60) || ''
+    document.getElementById('agBtnAgregarPantalla').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionPantalla').style.display = 'inline-flex'
+    renderPantallaCategoriaSelect()
+    renderPantallaDispositivoSelect()
+    document.getElementById('agPantallaHsInput').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  document.getElementById('agBtnCancelarEdicionPantalla').addEventListener('click', resetFormPantalla)
 
   document.getElementById('agBtnAgregarPantalla').addEventListener('click', async () => {
     const errEl = document.getElementById('agPantallaError')
@@ -1723,10 +1813,16 @@
     const min = Number(document.getElementById('agPantallaMinInput').value) || 0
     const minutos = hs * 60 + min
     if (minutos <= 0) { errEl.textContent = 'Cargá al menos algún minuto u hora.'; return }
-    const { error } = await supabase.from('pantalla_registros').insert([{ fecha: pantallaFechaSeleccionada, categoria_id: pantallaCategoriaSeleccionadaId, minutos }])
+
+    const datos = { categoria_id: pantallaCategoriaSeleccionadaId, dispositivo: pantallaDispositivoSeleccionado, minutos }
+    let error
+    if (pantallaRegistroEditId) {
+      ;({ error } = await supabase.from('pantalla_registros').update(datos).eq('id', pantallaRegistroEditId))
+    } else {
+      ;({ error } = await supabase.from('pantalla_registros').insert([{ ...datos, fecha: pantallaFechaSeleccionada }]))
+    }
     if (error) { errEl.textContent = 'Error: ' + error.message; return }
-    document.getElementById('agPantallaHsInput').value = ''
-    document.getElementById('agPantallaMinInput').value = ''
+    resetFormPantalla()
     await cargarPantallaDia()
     await cargarPantallaSemana()
     await cargarPantallaStats()
@@ -1736,6 +1832,7 @@
     if (!confirm('¿Eliminar este registro?')) return
     const { error } = await supabase.from('pantalla_registros').delete().eq('id', id)
     if (error) { alert('Error: ' + error.message); return }
+    if (pantallaRegistroEditId === id) resetFormPantalla()
     await cargarPantallaDia()
     await cargarPantallaSemana()
     await cargarPantallaStats()
@@ -1824,6 +1921,13 @@
     const lista = document.getElementById('agPantallaStatsLista')
     const empty = document.getElementById('agPantallaStatsEmpty')
     const diasInfoEl = document.getElementById('agPStatDiasRegistrados')
+
+    dibujarTortaPorCategoria(
+      pantallaRegistrosStats,
+      document.getElementById('agPStatsPie'),
+      document.getElementById('agPStatsPieEmpty'),
+      document.getElementById('agPStatsLeyenda')
+    )
 
     if (pantallaRegistrosStats.length === 0) {
       document.getElementById('agPStatTotal').textContent = '0h'
