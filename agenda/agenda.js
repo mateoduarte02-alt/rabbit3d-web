@@ -300,11 +300,13 @@
     document.getElementById('agVistaFinanzas').style.display = vistaActual === 'finanzas' ? 'block' : 'none'
     document.getElementById('agVistaEstudio').style.display = vistaActual === 'estudio' ? 'block' : 'none'
     document.getElementById('agVistaPantalla').style.display = vistaActual === 'pantalla' ? 'block' : 'none'
+    document.getElementById('agVistaProyectos').style.display = vistaActual === 'proyectos' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
     if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
     if (vistaActual === 'estudio') cargarEstudioTab()
     if (vistaActual === 'pantalla') cargarPantallaTab()
+    if (vistaActual === 'proyectos') cargarProyectos()
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -2094,6 +2096,410 @@
       </div>
     `).join('')
   }
+
+  // ══════════════════════════════════════════
+  //  PROYECTOS — links de referencia de cada proyecto que estás armando
+  // ══════════════════════════════════════════
+  let proyectos = []
+
+  async function cargarProyectos() {
+    const { data, error } = await supabase.from('agenda_proyectos').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[proyectos] error al cargar:', error); return }
+    proyectos = data || []
+    renderProyectos()
+    cargarUsoDb()
+    cargarBasesExternas()
+  }
+
+  function renderProyectos() {
+    const cont = document.getElementById('agProyectosLista')
+    const empty = document.getElementById('agProyectosEmpty')
+    if (proyectos.length === 0) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+
+    // Importante: agrupamos por el texto normalizado (sin mayúsculas/espacios
+    // de más) para que "Supabase - Rabbit3D" y "supabase - rabbit3d " se
+    // reconozcan como el mismo grupo, aunque se hayan tipeado distinto.
+    const grupos = {}
+    const sinGrupo = []
+    proyectos.forEach(p => {
+      const texto = (p.grupo_db || '').trim()
+      if (texto) {
+        const key = texto.toLowerCase()
+        if (!grupos[key]) grupos[key] = { label: texto, items: [] }
+        grupos[key].items.push(p)
+      } else {
+        sinGrupo.push(p)
+      }
+    })
+
+    let html = ''
+    Object.values(grupos).forEach(g => {
+      html += `<div class="ag-proyecto-grupo"><p class="ag-proyecto-grupo__titulo">🗄️ ${g.label}</p>${g.items.map(tarjetaProyecto).join('')}</div>`
+    })
+    if (sinGrupo.length) {
+      html += Object.keys(grupos).length
+        ? `<div class="ag-proyecto-sin-grupo"><p class="ag-materia-grupo__titulo">Sin agrupar</p>${sinGrupo.map(tarjetaProyecto).join('')}</div>`
+        : sinGrupo.map(tarjetaProyecto).join('')
+    }
+    cont.innerHTML = html
+
+    // Sugerencias de grupos ya usados, para el datalist del formulario
+    // (evita que un typo nuevo rompa la agrupación de vuelta)
+    const datalist = document.getElementById('agProyectoGrupoDbSugeridas')
+    if (datalist) {
+      const nombres = [...new Set(proyectos.map(p => (p.grupo_db || '').trim()).filter(Boolean))]
+      datalist.innerHTML = nombres.map(n => `<option value="${n}"></option>`).join('')
+    }
+  }
+
+  function tarjetaProyecto(p) {
+    const links = []
+    if (p.link_repo) links.push(`<a class="ag-proyecto-card__link" href="${p.link_repo}" target="_blank">🔗 Repo</a>`)
+    if (p.link_db) links.push(`<a class="ag-proyecto-card__link" href="${p.link_db}" target="_blank">🗄️ Base de datos</a>`)
+    const iconoBtn = p.icono
+      ? `<span style="font-size:1.05rem;line-height:1">${p.icono}</span>`
+      : `<img src="https://www.google.com/s2/favicons?sz=32&domain_url=${encodeURIComponent(p.link_sitio)}" alt=""/>`
+    const botonSitio = p.link_sitio ? `
+      <a class="ag-proyecto-card__sitio" href="${p.link_sitio}" target="_blank">
+        ${iconoBtn}
+        Visitar sitio
+      </a>` : ''
+    return `
+      <div class="ag-proyecto-card">
+        <div class="ag-proyecto-card__header">
+          <span class="ag-proyecto-card__color" style="background:${p.color}"></span>
+          <span class="ag-proyecto-card__nombre">${p.nombre}</span>
+          <div class="ag-proyecto-card__acciones">
+            <button class="ag-item__btn" title="Editar" onclick="window._agEditarProyecto(${p.id})">✎</button>
+            <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarProyecto(${p.id})">🗑</button>
+          </div>
+        </div>
+        ${p.descripcion ? `<p class="ag-proyecto-card__desc">${p.descripcion}</p>` : ''}
+        ${botonSitio}
+        ${links.length ? `<div class="ag-proyecto-card__links">${links.join('')}</div>` : ''}
+      </div>
+    `
+  }
+
+  function resetFormProyecto() {
+    document.getElementById('agProyectoEditId').value = ''
+    document.getElementById('agProyectoNombre').value = ''
+    document.getElementById('agProyectoDesc').value = ''
+    document.getElementById('agProyectoGrupoDb').value = ''
+    document.getElementById('agProyectoColor').value = '#159A9C'
+    document.getElementById('agProyectoIcono').value = ''
+    document.getElementById('agProyectoLinkSitio').value = ''
+    document.getElementById('agProyectoLinkRepo').value = ''
+    document.getElementById('agProyectoLinkDb').value = ''
+    document.getElementById('agProyectoPrefijoTablas').value = ''
+    document.getElementById('agProyectoBucket').value = ''
+    document.getElementById('agProyectoError').textContent = ''
+  }
+
+  document.getElementById('agBtnNuevoProyecto').addEventListener('click', () => {
+    resetFormProyecto()
+    document.getElementById('agModalProyectoTitulo').textContent = 'Nuevo proyecto'
+    document.getElementById('agModalProyecto').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalProyecto').addEventListener('click', () =>
+    document.getElementById('agModalProyecto').classList.remove('activo'))
+
+  window._agEditarProyecto = function (id) {
+    const p = proyectos.find(x => x.id === id)
+    if (!p) return
+    document.getElementById('agProyectoEditId').value = p.id
+    document.getElementById('agProyectoNombre').value = p.nombre
+    document.getElementById('agProyectoDesc').value = p.descripcion || ''
+    document.getElementById('agProyectoGrupoDb').value = p.grupo_db || ''
+    document.getElementById('agProyectoColor').value = p.color || '#159A9C'
+    document.getElementById('agProyectoIcono').value = p.icono || ''
+    document.getElementById('agProyectoLinkSitio').value = p.link_sitio || ''
+    document.getElementById('agProyectoLinkRepo').value = p.link_repo || ''
+    document.getElementById('agProyectoLinkDb').value = p.link_db || ''
+    document.getElementById('agProyectoPrefijoTablas').value = p.prefijo_tablas || ''
+    document.getElementById('agProyectoBucket').value = p.bucket || ''
+    document.getElementById('agProyectoError').textContent = ''
+    document.getElementById('agModalProyectoTitulo').textContent = 'Editar proyecto'
+    document.getElementById('agModalProyecto').classList.add('activo')
+  }
+
+  window._agEliminarProyecto = async function (id) {
+    if (!confirm('¿Eliminar este proyecto de la lista? (Esto no toca el proyecto real, solo esta referencia)')) return
+    const { error } = await supabase.from('agenda_proyectos').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarProyectos()
+  }
+
+  document.getElementById('agBtnGuardarProyecto').addEventListener('click', async () => {
+    const errEl = document.getElementById('agProyectoError')
+    errEl.textContent = ''
+    const id = document.getElementById('agProyectoEditId').value
+    const datos = {
+      nombre: document.getElementById('agProyectoNombre').value.trim(),
+      descripcion: document.getElementById('agProyectoDesc').value.trim() || null,
+      grupo_db: document.getElementById('agProyectoGrupoDb').value.trim() || null,
+      color: document.getElementById('agProyectoColor').value,
+      icono: document.getElementById('agProyectoIcono').value.trim() || null,
+      link_sitio: document.getElementById('agProyectoLinkSitio').value.trim() || null,
+      link_repo: document.getElementById('agProyectoLinkRepo').value.trim() || null,
+      link_db: document.getElementById('agProyectoLinkDb').value.trim() || null,
+      prefijo_tablas: document.getElementById('agProyectoPrefijoTablas').value.trim() || null,
+      bucket: document.getElementById('agProyectoBucket').value.trim() || null,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('agenda_proyectos').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('agenda_proyectos').insert([{ ...datos, orden: proyectos.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalProyecto').classList.remove('activo')
+    await cargarProyectos()
+  })
+
+  // ── Estadísticas de uso de esta base de datos (DB + Storage) ───────
+  const DB_QUOTA_MB = 500     // plan gratis de Supabase, 2026
+  const STORAGE_QUOTA_MB = 1024
+
+  // Clasifica cada tabla/bucket en el proyecto al que pertenece, según el
+  // mismo prefijo que usamos al nombrarlas en cada sección.
+  function clasificarNombre(nombre) {
+    if (/^(agenda_|finanzas_|estudio_|pantalla_)/.test(nombre)) return 'Agenda'
+    if (/^catalogo/.test(nombre)) return 'Catálogos'
+    return 'La Madriguera'
+  }
+
+  async function cargarUsoDb() {
+    // Tamaño de cada tabla, vía la función que creaste en Supabase
+    let tablas = []
+    try {
+      const { data, error } = await supabase.rpc('tamanos_tablas_db')
+      if (error) throw error
+      tablas = data || []
+    } catch (e) {
+      console.error('[uso-db] no se pudo medir la base de datos (¿corriste agenda_estadisticas_db_setup.sql?):', e)
+      document.getElementById('agDbSizeLabel').textContent = 'No se pudo calcular'
+    }
+
+    const porProyectoDb = { 'La Madriguera': 0, 'Agenda': 0, 'Catálogos': 0 }
+    let totalDbBytes = 0
+    tablas.forEach(t => {
+      totalDbBytes += Number(t.bytes)
+      porProyectoDb[clasificarNombre(t.tabla)] += Number(t.bytes)
+    })
+
+    if (tablas.length) {
+      const totalDbMB = totalDbBytes / (1024 * 1024)
+      const pct = Math.min(100, (totalDbMB / DB_QUOTA_MB) * 100)
+      document.getElementById('agDbSizeFill').style.width = pct.toFixed(1) + '%'
+      document.getElementById('agDbSizeFill').classList.toggle('ag-storage-bar__fill--alerta', pct >= 85)
+      document.getElementById('agDbSizeLabel').textContent = `${totalDbMB.toFixed(1)} MB de ${DB_QUOTA_MB} MB (${pct.toFixed(0)}%)`
+    }
+
+    // Tamaño de Storage — un bucket conocido por proyecto. Si alguno no
+    // existe o da error, simplemente queda en 0 sin romper el resto.
+    async function tamanoBucket(nombreBucket) {
+      try {
+        let archivos = [], offset = 0
+        const limite = 1000
+        while (true) {
+          const { data, error } = await supabase.storage.from(nombreBucket).list('', { limit: limite, offset })
+          if (error) throw error
+          archivos = archivos.concat(data || [])
+          if (!data || data.length < limite) break
+          offset += limite
+        }
+        return archivos.reduce((sum, f) => sum + (f.metadata?.size || 0), 0)
+      } catch (e) {
+        return 0
+      }
+    }
+
+    const [bytesMedia, bytesCatalogos] = await Promise.all([tamanoBucket('media'), tamanoBucket('catalogos')])
+    const porProyectoStorage = { 'La Madriguera': bytesMedia, 'Agenda': 0, 'Catálogos': bytesCatalogos }
+    const totalStorageBytes = bytesMedia + bytesCatalogos
+    const totalStorageMB = totalStorageBytes / (1024 * 1024)
+    const pctStorage = Math.min(100, (totalStorageMB / STORAGE_QUOTA_MB) * 100)
+    document.getElementById('agStorageSizeFill').style.width = pctStorage.toFixed(1) + '%'
+    document.getElementById('agStorageSizeFill').classList.toggle('ag-storage-bar__fill--alerta', pctStorage >= 85)
+    document.getElementById('agStorageSizeLabel').textContent = `${totalStorageMB.toFixed(1)} MB de ${STORAGE_QUOTA_MB} MB (${pctStorage.toFixed(0)}%)`
+
+    // Lista combinada (DB + Storage) por proyecto
+    const cont = document.getElementById('agUsoPorProyectoLista')
+    const nombres = ['La Madriguera', 'Agenda', 'Catálogos']
+    cont.innerHTML = nombres.map(n => {
+      const dbMB = (porProyectoDb[n] || 0) / (1024 * 1024)
+      const stMB = (porProyectoStorage[n] || 0) / (1024 * 1024)
+      return `
+        <div class="ag-uso-proyecto-fila">
+          <span class="ag-uso-proyecto-fila__nombre">${n}</span>
+          <span class="ag-uso-proyecto-fila__dato" title="Tamaño en disco de las tablas de este proyecto (Database Size, solo la parte que le corresponde)">DB: ${dbMB.toFixed(1)} MB</span>
+          <span class="ag-uso-proyecto-fila__dato" title="Tamaño de los archivos subidos por este proyecto (Storage Size, solo su bucket)">Storage: ${stMB.toFixed(1)} MB</span>
+        </div>
+      `
+    }).join('')
+  }
+
+  // ── Otras bases de datos (proyectos de Supabase separados) ─────────
+  let basesExternas = []
+
+  async function cargarBasesExternas() {
+    const { data, error } = await supabase.from('agenda_bases_externas').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[bases-externas] error al cargar:', error); return }
+    basesExternas = data || []
+    renderBasesExternas()
+  }
+
+  function renderBasesExternas() {
+    const cont = document.getElementById('agBasesExternasLista')
+    const empty = document.getElementById('agBasesExternasEmpty')
+    if (!basesExternas.length) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+    cont.innerHTML = basesExternas.map(b => `
+      <div class="ag-proyecto-card">
+        <div class="ag-proyecto-card__header">
+          <span class="ag-proyecto-card__nombre">${b.nombre}</span>
+          <div class="ag-proyecto-card__acciones">
+            <button class="ag-item__btn" title="Editar" onclick="window._agEditarBaseExterna(${b.id})">✎</button>
+            <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarBaseExterna(${b.id})">🗑</button>
+          </div>
+        </div>
+        <div style="margin-top:.5rem">
+          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-bottom:.3rem">
+            <span title="Database Size de este proyecto separado">Database Size</span><span id="agBaseExt${b.id}Label">Calculando...</span>
+          </div>
+          <div class="ag-storage-bar"><div class="ag-storage-bar__fill" id="agBaseExt${b.id}Fill" style="width:0%"></div></div>
+        </div>
+        <div id="agBaseExt${b.id}Desglose" style="margin-top:.7rem"></div>
+      </div>
+    `).join('')
+    basesExternas.forEach(medirBaseExterna)
+  }
+
+  async function medirBaseExterna(b) {
+    const labelEl = document.getElementById(`agBaseExt${b.id}Label`)
+    const fillEl = document.getElementById(`agBaseExt${b.id}Fill`)
+    const desgloseEl = document.getElementById(`agBaseExt${b.id}Desglose`)
+    if (!labelEl || !fillEl) return
+    try {
+      const clienteExterno = window.supabase.createClient(b.url, b.anon_key)
+      const { data, error } = await clienteExterno.rpc('tamanos_tablas_db')
+      if (error) throw error
+      const tablas = data || []
+      const totalBytes = tablas.reduce((s, t) => s + Number(t.bytes), 0)
+      const totalMB = totalBytes / (1024 * 1024)
+      const pct = Math.min(100, (totalMB / DB_QUOTA_MB) * 100)
+      fillEl.style.width = pct.toFixed(1) + '%'
+      fillEl.classList.toggle('ag-storage-bar__fill--alerta', pct >= 85)
+      labelEl.textContent = `${totalMB.toFixed(1)} MB de ${DB_QUOTA_MB} MB (${pct.toFixed(0)}%)`
+
+      // Desglose por proyecto: cualquier proyecto cargado en "Mis proyectos"
+      // con el mismo texto de "grupo" que esta base, y que tenga cargado su
+      // prefijo de tablas (y opcionalmente su bucket), se resta acá aparte.
+      const clave = (b.nombre || '').trim().toLowerCase()
+      const proyectosDeEstaBase = proyectos.filter(p =>
+        (p.grupo_db || '').trim().toLowerCase() === clave && p.prefijo_tablas)
+
+      if (desgloseEl && proyectosDeEstaBase.length) {
+        const tablasUsadas = new Set()
+        const filas = await Promise.all(proyectosDeEstaBase.map(async p => {
+          const dbBytes = tablas
+            .filter(t => t.tabla.startsWith(p.prefijo_tablas))
+            .reduce((s, t) => { tablasUsadas.add(t.tabla); return s + Number(t.bytes) }, 0)
+
+          let storageBytes = 0
+          if (p.bucket) {
+            try {
+              let archivos = [], offset = 0
+              while (true) {
+                const { data: lista, error: errLista } = await clienteExterno.storage.from(p.bucket).list('', { limit: 1000, offset })
+                if (errLista) throw errLista
+                archivos = archivos.concat(lista || [])
+                if (!lista || lista.length < 1000) break
+                offset += 1000
+              }
+              storageBytes = archivos.reduce((s, f) => s + (f.metadata?.size || 0), 0)
+            } catch (e) { storageBytes = 0 }
+          }
+          return { nombre: p.nombre, dbMB: dbBytes / (1024 * 1024), stMB: storageBytes / (1024 * 1024) }
+        }))
+
+        const bytesSinClasificar = tablas.filter(t => !tablasUsadas.has(t.tabla)).reduce((s, t) => s + Number(t.bytes), 0)
+        if (bytesSinClasificar > 0) filas.push({ nombre: 'Sin clasificar', dbMB: bytesSinClasificar / (1024 * 1024), stMB: 0 })
+
+        desgloseEl.innerHTML = filas.map(f => `
+          <div class="ag-uso-proyecto-fila">
+            <span class="ag-uso-proyecto-fila__nombre">${f.nombre}</span>
+            <span class="ag-uso-proyecto-fila__dato" title="Tamaño en disco de las tablas de este proyecto en esta base compartida">DB: ${f.dbMB.toFixed(1)} MB</span>
+            ${f.stMB > 0 ? `<span class="ag-uso-proyecto-fila__dato" title="Tamaño de los archivos subidos de este proyecto en esta base compartida">Storage: ${f.stMB.toFixed(1)} MB</span>` : ''}
+          </div>
+        `).join('')
+      } else if (desgloseEl) {
+        desgloseEl.innerHTML = ''
+      }
+    } catch (e) {
+      labelEl.textContent = 'No se pudo medir (¿corriste la función ahí?)'
+      console.error('[bases-externas] error midiendo', b.nombre, e)
+    }
+  }
+
+  function resetFormBaseExterna() {
+    document.getElementById('agBaseExternaEditId').value = ''
+    document.getElementById('agBaseExternaNombre').value = ''
+    document.getElementById('agBaseExternaUrl').value = ''
+    document.getElementById('agBaseExternaAnonKey').value = ''
+    document.getElementById('agBaseExternaError').textContent = ''
+  }
+
+  document.getElementById('agBtnNuevaBaseExterna').addEventListener('click', () => {
+    resetFormBaseExterna()
+    document.getElementById('agModalBaseExternaTitulo').textContent = 'Nueva base de datos'
+    document.getElementById('agModalBaseExterna').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalBaseExterna').addEventListener('click', () =>
+    document.getElementById('agModalBaseExterna').classList.remove('activo'))
+
+  window._agEditarBaseExterna = function (id) {
+    const b = basesExternas.find(x => x.id === id)
+    if (!b) return
+    document.getElementById('agBaseExternaEditId').value = b.id
+    document.getElementById('agBaseExternaNombre').value = b.nombre
+    document.getElementById('agBaseExternaUrl').value = b.url
+    document.getElementById('agBaseExternaAnonKey').value = b.anon_key
+    document.getElementById('agBaseExternaError').textContent = ''
+    document.getElementById('agModalBaseExternaTitulo').textContent = 'Editar base de datos'
+    document.getElementById('agModalBaseExterna').classList.add('activo')
+  }
+
+  window._agEliminarBaseExterna = async function (id) {
+    if (!confirm('¿Eliminar esta base de la lista? (Esto no toca la base real, solo esta referencia)')) return
+    const { error } = await supabase.from('agenda_bases_externas').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarBasesExternas()
+  }
+
+  document.getElementById('agBtnGuardarBaseExterna').addEventListener('click', async () => {
+    const errEl = document.getElementById('agBaseExternaError')
+    errEl.textContent = ''
+    const id = document.getElementById('agBaseExternaEditId').value
+    const datos = {
+      nombre: document.getElementById('agBaseExternaNombre').value.trim(),
+      url: document.getElementById('agBaseExternaUrl').value.trim(),
+      anon_key: document.getElementById('agBaseExternaAnonKey').value.trim(),
+    }
+    if (!datos.nombre || !datos.url || !datos.anon_key) { errEl.textContent = 'Completá los tres campos.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('agenda_bases_externas').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('agenda_bases_externas').insert([{ ...datos, orden: basesExternas.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalBaseExterna').classList.remove('activo')
+    await cargarBasesExternas()
+  })
 
   // ══════════════════════════════════════════
   //  INIT

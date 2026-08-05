@@ -245,6 +245,45 @@
     .ag-materia-grupo { margin-bottom: 1rem; }
     .ag-materia-grupo__titulo { font-size: .7rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 .5rem; }
 
+    .ag-proyecto-grupo { border: 1px solid var(--cyan-mid); border-radius: 12px; padding: 1.1rem 1rem .3rem; margin-bottom: 1.4rem; }
+    .ag-proyecto-grupo__titulo {
+      font-size: .68rem; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .06em;
+      margin: 0 0 .9rem; display: flex; align-items: center; gap: .4rem;
+    }
+    .ag-proyecto-sin-grupo { margin-bottom: 1.4rem; }
+
+    .ag-storage-bar { width: 100%; height: 10px; border-radius: 6px; background: var(--bg3); overflow: hidden; }
+    .ag-storage-bar__fill { height: 100%; background: var(--cyan); transition: width .4s; }
+    .ag-storage-bar__fill--alerta { background: #d94060; }
+    .ag-uso-proyecto-fila { display: flex; align-items: center; gap: .6rem; padding: .5rem .2rem; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .ag-uso-proyecto-fila:last-child { border-bottom: none; }
+    .ag-uso-proyecto-fila__nombre { flex: 1; color: var(--text); font-weight: 600; }
+    .ag-uso-proyecto-fila__dato { color: var(--muted); font-size: .74rem; }
+
+    .ag-metrica-externa-fila {
+      display: flex; justify-content: space-between; align-items: center; padding: .5rem .2rem;
+      border-bottom: 1px solid var(--border); font-size: .78rem; color: var(--text); cursor: help;
+    }
+    .ag-metrica-externa-fila:last-child { border-bottom: none; }
+    .ag-metrica-externa-fila__nota { color: var(--muted); font-size: .68rem; font-style: italic; }
+
+    .ag-proyecto-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: .8rem; }
+    .ag-proyecto-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+    .ag-proyecto-card__color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .ag-proyecto-card__nombre { font-weight: 700; color: var(--text); font-size: .92rem; flex: 1; }
+    .ag-proyecto-card__acciones { display: flex; gap: .3rem; }
+    .ag-proyecto-card__desc { font-size: .78rem; color: var(--muted); margin: 0 0 .7rem; line-height: 1.5; }
+    .ag-proyecto-card__sitio {
+      display: inline-flex; align-items: center; gap: .55rem; background: var(--cyan); color: #fff;
+      font-size: .82rem; font-weight: 700; padding: .55rem 1.1rem; border-radius: 8px; text-decoration: none;
+      margin-bottom: .8rem; transition: transform .15s, box-shadow .15s;
+    }
+    .ag-proyecto-card__sitio img { width: 16px; height: 16px; border-radius: 3px; background: #fff; }
+    .ag-proyecto-card__sitio:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(21,154,156,.35); }
+    .ag-proyecto-card__links { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .ag-proyecto-card__link { font-size: .72rem; color: var(--cyan); background: var(--cyan-dim); border: 1px solid var(--cyan-mid); padding: .3rem .7rem; border-radius: 20px; text-decoration: none; }
+    .ag-proyecto-card__link:hover { background: var(--cyan-mid); }
+
     .ag-examen-row { display: flex; align-items: center; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .9rem; margin-bottom: .5rem; }
     .ag-examen-row__nombre { flex: 1; color: var(--text); font-weight: 700; font-size: .85rem; }
     .ag-examen-row__dias { font-size: .78rem; font-weight: 700; color: var(--cyan); white-space: nowrap; }
@@ -324,6 +363,7 @@
         <button class="ag-nav-item" data-vista="finanzas">💰 Finanzas</button>
         <button class="ag-nav-item" data-vista="estudio">📚 Estudio</button>
         <button class="ag-nav-item" data-vista="pantalla">📱 Pantalla</button>
+        <button class="ag-nav-item" data-vista="proyectos">🗂️ Proyectos</button>
         <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
@@ -663,6 +703,77 @@
             <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:.9rem">Total últimos 7 días: <strong id="agPcTotalSemanaTotal" style="color:var(--cyan)">0 min</strong></p>
           </div>
         </div>
+
+        <!-- VISTA PROYECTOS -->
+        <div id="agVistaProyectos" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
+            <p class="ag-section-label" style="margin:0">🗂️ Mis proyectos</p>
+            <div style="display:flex;gap:.5rem">
+              <a class="btn btn--sm" href="https://vault.bitwarden.com/" target="_blank" style="text-decoration:none">🔐 Abrir Bitwarden</a>
+              <button class="btn btn--primary btn--sm" id="agBtnNuevoProyecto">+ Nuevo proyecto</button>
+            </div>
+          </div>
+          <p style="font-size:.76rem;color:var(--muted);margin:0 0 1.3rem;line-height:1.6">
+            Guardá acá links de referencia (sitio, repo, base de datos) de cada proyecto que estás armando.
+            <strong style="color:var(--cyan)">Nunca cargues contraseñas ni claves secretas</strong> — solo direcciones.
+            Si dos proyectos comparten la misma base de datos, poneles el mismo "grupo" para que aparezcan juntos.
+          </p>
+          <div id="agProyectosLista"></div>
+          <p class="ag-empty" id="agProyectosEmpty" style="display:none">Todavía no cargaste ningún proyecto.</p>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.6rem">
+            <p class="ag-section-label" style="margin-bottom:.4rem">📊 Uso de esta base de datos (plan gratis de Supabase)</p>
+            <p style="font-size:.74rem;color:var(--muted);margin:0 0 1.2rem">
+              Cubre este proyecto de Supabase (el que comparten los proyectos agrupados arriba bajo el mismo "grupo").
+              Si tenés otro proyecto de Supabase totalmente aparte, esto no lo ve — hay que revisarlo desde el dashboard de ese otro proyecto.
+            </p>
+
+            <div style="margin-bottom:1.3rem">
+              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:.35rem">
+                <span title="Cuánto ocupan tus tablas de Postgres en disco (filas, índices, todo lo que no sea un archivo subido).">Database Size ⓘ</span>
+                <span id="agDbSizeLabel">Calculando...</span>
+              </div>
+              <div class="ag-storage-bar"><div class="ag-storage-bar__fill" id="agDbSizeFill" style="width:0%"></div></div>
+            </div>
+            <div style="margin-bottom:1.4rem">
+              <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-bottom:.35rem">
+                <span title="Cuánto ocupan los archivos que subiste a Supabase Storage (imágenes, logos, etc.), sin contar lo que está en la base de datos.">Storage Size ⓘ</span>
+                <span id="agStorageSizeLabel">Calculando...</span>
+              </div>
+              <div class="ag-storage-bar"><div class="ag-storage-bar__fill" id="agStorageSizeFill" style="width:0%"></div></div>
+            </div>
+
+            <p class="ag-materia-grupo__titulo" style="margin-bottom:.6rem">Por proyecto (según prefijo de tablas / bucket)</p>
+            <div id="agUsoPorProyectoLista"></div>
+
+            <p class="ag-materia-grupo__titulo" style="margin:1.3rem 0 .3rem">Otras métricas del plan (solo visibles en el dashboard de Supabase)</p>
+            <div class="ag-metrica-externa-fila" title="Cuántos datos salieron de tu proyecto hacia afuera (respuestas de la API, descargas de Storage, etc.) en el mes. Si te pasás del límite, Supabase empieza a devolver error hasta el próximo período.">
+              <span>Egress</span><span class="ag-metrica-externa-fila__nota">Ver en Supabase</span>
+            </div>
+            <div class="ag-metrica-externa-fila" title="Igual que Egress, pero de contenido que ya estaba guardado en caché (más barato/rápido de servir). No suma tanto contra tu límite como el Egress normal.">
+              <span>Cached Egress</span><span class="ag-metrica-externa-fila__nota">Ver en Supabase</span>
+            </div>
+            <div class="ag-metrica-externa-fila" title="Cuántas personas distintas iniciaron sesión (se autenticaron) en el proyecto durante el mes. El plan gratis permite hasta 50.000.">
+              <span>Monthly Active Users</span><span class="ag-metrica-externa-fila__nota">Ver en Supabase</span>
+            </div>
+            <div class="ag-metrica-externa-fila" title="Cuántas veces se ejecutó alguna Edge Function (como la del Potenciador de producto) en el mes.">
+              <span>Edge Function Invocations</span><span class="ag-metrica-externa-fila__nota">Ver en Supabase</span>
+            </div>
+          </div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.2rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.5rem">
+              <p class="ag-section-label" style="margin:0">🗄️ Otras bases de datos</p>
+              <button class="btn btn--sm" id="agBtnNuevaBaseExterna">+ Agregar base</button>
+            </div>
+            <p style="font-size:.72rem;color:var(--muted);margin:0 0 1.1rem">
+              Proyectos de Supabase totalmente separados de este (no comparten nada con La Madriguera/Agenda/Catálogos).
+              Necesitan tener corrida la función de tamaños ahí para poder medirse — la dejé comentada en el SQL de esta sección.
+            </p>
+            <div id="agBasesExternasLista"></div>
+            <p class="ag-empty" id="agBasesExternasEmpty" style="display:none">Todavía no registraste ninguna otra base.</p>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -842,6 +953,94 @@
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoria">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionCategoria" style="display:none">Cancelar edición</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: nueva/editar base de datos externa -->
+  <div class="modal-overlay" id="agModalBaseExterna">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalBaseExterna">✕</button>
+      <h2 class="modal__title" id="agModalBaseExternaTitulo">Nueva base de datos</h2>
+      <input type="hidden" id="agBaseExternaEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agBaseExternaNombre" class="form-input" placeholder="Ej: Turnos Pato"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL del proyecto</label>
+        <input type="text" id="agBaseExternaUrl" class="form-input" placeholder="https://xxxxx.supabase.co"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Anon key (la pública — nunca cargues la service role)</label>
+        <textarea id="agBaseExternaAnonKey" class="form-input form-textarea" placeholder="eyJhbGciOi..." style="font-family:monospace;font-size:.68rem"></textarea>
+      </div>
+      <p class="form-error" id="agBaseExternaError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardarBaseExterna">Guardar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: nuevo/editar proyecto -->
+  <div class="modal-overlay" id="agModalProyecto">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalProyecto">✕</button>
+      <h2 class="modal__title" id="agModalProyectoTitulo">Nuevo proyecto</h2>
+      <input type="hidden" id="agProyectoEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agProyectoNombre" class="form-input" placeholder="Ej: Turnos - Mamá"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción (opcional)</label>
+        <textarea id="agProyectoDesc" class="form-input form-textarea" placeholder="De qué se trata este proyecto..."></textarea>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Grupo de base de datos (opcional)</label>
+          <input type="text" id="agProyectoGrupoDb" class="form-input" placeholder="Ej: Supabase - Rabbit3D" list="agProyectoGrupoDbSugeridas"/>
+          <datalist id="agProyectoGrupoDbSugeridas"></datalist>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Ícono</label>
+          <input type="text" id="agProyectoIcono" class="form-input" placeholder="🐇" maxlength="4" style="width:60px;text-align:center;font-size:1.1rem"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agProyectoColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <p style="font-size:.7rem;color:var(--muted);margin:0 0 .8rem">
+        Proyectos con el mismo texto de "grupo" se muestran agrupados. El ícono es para diferenciar el botón
+        "Visitar sitio" — se necesita porque si dos proyectos corren dentro del mismo dominio, el favicon
+        automático les sale igual a los dos (no hay forma de evitar eso, es una limitación del servicio que lo trae).
+      </p>
+      <div class="form-group">
+        <label class="form-label">Link del sitio publicado</label>
+        <input type="text" id="agProyectoLinkSitio" class="form-input" placeholder="https://..."/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link del repositorio (GitHub, etc.)</label>
+        <input type="text" id="agProyectoLinkRepo" class="form-input" placeholder="https://github.com/..."/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link de referencia de la base de datos</label>
+        <input type="text" id="agProyectoLinkDb" class="form-input" placeholder="https://xxxxx.supabase.co (solo la URL, nunca claves)"/>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Prefijo de tablas (opcional)</label>
+          <input type="text" id="agProyectoPrefijoTablas" class="form-input" placeholder="Ej: turnos_"/>
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Bucket de Storage (opcional)</label>
+          <input type="text" id="agProyectoBucket" class="form-input" placeholder="Ej: turnos-fotos"/>
+        </div>
+      </div>
+      <p style="font-size:.7rem;color:var(--muted);margin:0 0 1rem">
+        Si este proyecto vive en una base compartida que registraste en "Otras bases de datos" (mismo texto de "grupo"),
+        completá esto para que el uso se desglose por proyecto ahí también.
+      </p>
+      <p class="form-error" id="agProyectoError"></p>
+      <button class="btn btn--primary btn--full" id="agBtnGuardarProyecto">Guardar</button>
     </div>
   </div>
 
