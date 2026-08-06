@@ -301,12 +301,14 @@
     document.getElementById('agVistaEstudio').style.display = vistaActual === 'estudio' ? 'block' : 'none'
     document.getElementById('agVistaPantalla').style.display = vistaActual === 'pantalla' ? 'block' : 'none'
     document.getElementById('agVistaProyectos').style.display = vistaActual === 'proyectos' ? 'block' : 'none'
+    document.getElementById('agVistaEntreno').style.display = vistaActual === 'entreno' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
     if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
     if (vistaActual === 'estudio') cargarEstudioTab()
     if (vistaActual === 'pantalla') cargarPantallaTab()
     if (vistaActual === 'proyectos') cargarProyectos()
+    if (vistaActual === 'entreno') cargarEntrenoTab()
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -1978,22 +1980,30 @@
     document.getElementById('agPStatTotal').textContent = formatoHorasMin(totalGeneral)
     document.getElementById('agPStatPromedio').textContent = formatoHorasMin(Math.round(totalGeneral / periodDays))
 
-    const porCat = {}
+    // "Más usada" y "Día récord" se calculan por categoría combinada (sin
+    // separar dispositivo) — tiene más sentido decir "YouTube" en general
+    // que declarar ganador solo a la mitad celular o la mitad PC.
+    const porCatSolo = {}
     const porFecha = {}
     pantallaRegistrosStats.forEach(r => {
-      const nombre = nombreDe(r), color = colorDe(r)
-      if (!porCat[nombre]) porCat[nombre] = { nombre, color, total: 0 }
-      porCat[nombre].total += r.minutos
+      const nombre = nombreDe(r)
+      porCatSolo[nombre] = (porCatSolo[nombre] || 0) + r.minutos
       porFecha[r.fecha] = (porFecha[r.fecha] || 0) + r.minutos
     })
+    const masUsada = Object.entries(porCatSolo).sort((a, b) => b[1] - a[1])[0]
+    document.getElementById('agPStatTop').textContent = masUsada ? masUsada[0] : '—'
 
-    const filas = Object.values(porCat).sort((a, b) => b.total - a.total).map(c => ({
-      ...c,
-      pct: (c.total / totalGeneral) * 100,
-      promedio: c.total / periodDays,
-    }))
-
-    document.getElementById('agPStatTop').textContent = filas.length ? filas[0].nombre : '—'
+    // La lista de abajo sí separa por dispositivo (igual que la torta), para
+    // que se vea cuánto es celular y cuánto es PC dentro de cada categoría.
+    const filas = agruparPorCategoriaYDispositivo(pantallaRegistrosStats)
+      .map(g => ({
+        nombre: etiquetaDispositivo(g.dispositivo) ? `${g.nombre} ${etiquetaDispositivo(g.dispositivo)}` : g.nombre,
+        color: colorPorDispositivo(g.colorBase, g.dispositivo),
+        total: g.total,
+        pct: (g.total / totalGeneral) * 100,
+        promedio: g.total / periodDays,
+      }))
+      .sort((a, b) => b.total - a.total)
 
     const fechasConRegistro = Object.keys(porFecha)
     const diaRecordEntry = Object.entries(porFecha).sort((a, b) => b[1] - a[1])[0]
@@ -2500,6 +2510,460 @@
     document.getElementById('agModalBaseExterna').classList.remove('activo')
     await cargarBasesExternas()
   })
+
+  // ══════════════════════════════════════════
+  //  ENTRENO — calendario de entrenamiento, categorías propias, metas
+  //  semanales flexibles (sin días fijos) y resumen con frase
+  // ══════════════════════════════════════════
+  let entrenoCategorias = []
+  let entrenoRegistros = []   // registros del mes visible en el calendario
+  let entrenoMesActual = new Date()
+  let entrenoDiaSeleccionado = null
+
+  async function cargarEntrenoTab() {
+    await cargarCategoriasEntreno()
+    await cargarEntrenoFrasesDB()
+    await cargarEntrenoMes()
+    await cargarEntrenoFrase()
+    await cargarEntrenoStatsLista()
+  }
+
+  function categoriaEntrenoDe(id) { return entrenoCategorias.find(c => c.id === id) }
+
+  // ── Categorías propias ──────────────────────────────────────────────
+  async function cargarCategoriasEntreno() {
+    const { data, error } = await supabase.from('entreno_categorias').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[entreno] error al cargar categorías:', error); return }
+    entrenoCategorias = data || []
+  }
+
+  document.getElementById('agBtnCategoriasEntreno').addEventListener('click', () => {
+    renderCategoriasEntrenoLista()
+    resetFormCategoriaEntreno()
+    document.getElementById('agModalCategoriasEntreno').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalCategoriasEntreno').addEventListener('click', () =>
+    document.getElementById('agModalCategoriasEntreno').classList.remove('activo'))
+
+  function renderCategoriasEntrenoLista() {
+    const cont = document.getElementById('agCategoriasEntrenoLista')
+    if (!entrenoCategorias.length) { cont.innerHTML = '<p style="font-size:.78rem;color:var(--muted)">Todavía no creaste ninguna categoría.</p>'; return }
+    cont.innerHTML = entrenoCategorias.map(c => `
+      <div class="ag-tipo-row">
+        <div class="ag-tipo-row__color" style="background:${c.color}"></div>
+        <span class="ag-tipo-row__nombre">${c.nombre}${c.meta_semanal ? ` · meta ${c.meta_semanal}x/sem` : ''}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarCategoriaEntreno(${c.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarCategoriaEntreno(${c.id})">🗑</button>
+      </div>
+    `).join('')
+  }
+
+  function resetFormCategoriaEntreno() {
+    document.getElementById('agCategoriaEntrenoEditId').value = ''
+    document.getElementById('agCategoriaEntrenoNombre').value = ''
+    document.getElementById('agCategoriaEntrenoMeta').value = ''
+    document.getElementById('agCategoriaEntrenoColor').value = '#159A9C'
+    document.getElementById('agCategoriaEntrenoError').textContent = ''
+    document.getElementById('agBtnGuardarCategoriaEntreno').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionCategoriaEntreno').style.display = 'none'
+  }
+
+  window._agEditarCategoriaEntreno = function (id) {
+    const c = categoriaEntrenoDe(id)
+    if (!c) return
+    document.getElementById('agCategoriaEntrenoEditId').value = c.id
+    document.getElementById('agCategoriaEntrenoNombre').value = c.nombre
+    document.getElementById('agCategoriaEntrenoMeta').value = c.meta_semanal || ''
+    document.getElementById('agCategoriaEntrenoColor').value = c.color
+    document.getElementById('agBtnGuardarCategoriaEntreno').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionCategoriaEntreno').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionCategoriaEntreno').addEventListener('click', resetFormCategoriaEntreno)
+
+  window._agEliminarCategoriaEntreno = async function (id) {
+    if (!confirm('¿Eliminar esta categoría? También se borran los días marcados con ella.')) return
+    const { error } = await supabase.from('entreno_categorias').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarCategoriasEntreno()
+    renderCategoriasEntrenoLista()
+    await cargarEntrenoMes()
+    await cargarEntrenoFrase()
+    await cargarEntrenoStatsLista()
+  }
+
+  document.getElementById('agBtnGuardarCategoriaEntreno').addEventListener('click', async () => {
+    const errEl = document.getElementById('agCategoriaEntrenoError')
+    errEl.textContent = ''
+    const id = document.getElementById('agCategoriaEntrenoEditId').value
+    const metaRaw = document.getElementById('agCategoriaEntrenoMeta').value
+    const datos = {
+      nombre: document.getElementById('agCategoriaEntrenoNombre').value.trim(),
+      color: document.getElementById('agCategoriaEntrenoColor').value,
+      meta_semanal: metaRaw === '' ? null : Number(metaRaw),
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('entreno_categorias').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('entreno_categorias').insert([{ ...datos, orden: entrenoCategorias.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarCategoriasEntreno()
+    renderCategoriasEntrenoLista()
+    resetFormCategoriaEntreno()
+    await cargarEntrenoMes()
+    await cargarEntrenoFrase()
+    await cargarEntrenoStatsLista()
+  })
+
+  // ── Calendario mensual ───────────────────────────────────────────────
+  document.getElementById('agEntrenoCalPrev').addEventListener('click', () => {
+    entrenoMesActual = new Date(entrenoMesActual.getFullYear(), entrenoMesActual.getMonth() - 1, 1)
+    cargarEntrenoMes()
+  })
+  document.getElementById('agEntrenoCalNext').addEventListener('click', () => {
+    entrenoMesActual = new Date(entrenoMesActual.getFullYear(), entrenoMesActual.getMonth() + 1, 1)
+    cargarEntrenoMes()
+  })
+
+  async function cargarEntrenoMes() {
+    const year = entrenoMesActual.getFullYear(), month = entrenoMesActual.getMonth()
+    const desde = `${year}-${String(month + 1).padStart(2, '0')}-01`
+    const ultimoDiaNum = new Date(year, month + 1, 0).getDate()
+    const hasta = `${year}-${String(month + 1).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`
+    const { data, error } = await supabase.from('entreno_registros').select('*').gte('fecha', desde).lte('fecha', hasta)
+    if (error) { console.error('[entreno] error al cargar el mes:', error); return }
+    entrenoRegistros = data || []
+    renderEntrenoCalendario()
+  }
+
+  function fondoDiaEntreno(colores) {
+    if (!colores.length) return ''
+    if (colores.length === 1) return `background:${colores[0]}55`
+    const paso = 100 / colores.length
+    const stops = colores.map((c, i) => `${c}55 ${i * paso}%, ${c}55 ${(i + 1) * paso}%`).join(', ')
+    return `background: linear-gradient(135deg, ${stops})`
+  }
+
+  function renderEntrenoCalendario() {
+    const year = entrenoMesActual.getFullYear(), month = entrenoMesActual.getMonth()
+    document.getElementById('agEntrenoCalMes').textContent = entrenoMesActual.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+
+    const primerDia = new Date(year, month, 1)
+    const ultimoDia = new Date(year, month + 1, 0)
+    const inicioOffset = (primerDia.getDay() + 6) % 7
+
+    const dias = []
+    for (let i = 0; i < inicioOffset; i++) dias.push(null)
+    for (let d = 1; d <= ultimoDia.getDate(); d++) dias.push(d)
+
+    const porFecha = {}
+    entrenoRegistros.forEach(r => { (porFecha[r.fecha] = porFecha[r.fecha] || []).push(r) })
+
+    const dow = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    let html = dow.map(d => `<div class="ag-cal-dow">${d}</div>`).join('')
+
+    html += dias.map(d => {
+      if (!d) return `<div class="ag-cal-day ag-cal-day--fuera"></div>`
+      const fechaISO = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const esHoy = fechaISO === hoyISO()
+      const seleccionado = fechaISO === entrenoDiaSeleccionado
+      const catsDia = [...new Set((porFecha[fechaISO] || []).map(r => r.categoria_id))]
+      const colores = catsDia.map(cid => categoriaEntrenoDe(cid)?.color).filter(Boolean)
+      const fondo = fondoDiaEntreno(colores)
+      return `<div class="ag-cal-day ${esHoy ? 'ag-cal-day--hoy' : ''} ${seleccionado ? 'ag-cal-day--seleccionado' : ''}" style="${fondo}" onclick="window._agSeleccionarDiaEntreno('${fechaISO}')">
+        <span class="ag-cal-day__num">${d}</span>
+      </div>`
+    }).join('')
+
+    document.getElementById('agEntrenoCalGrid').innerHTML = html
+    renderEntrenoCalDetalle(porFecha)
+  }
+
+  window._agSeleccionarDiaEntreno = function (fechaISO) {
+    entrenoDiaSeleccionado = (entrenoDiaSeleccionado === fechaISO) ? null : fechaISO
+    renderEntrenoCalendario()
+  }
+
+  function renderEntrenoCalDetalle(porFecha) {
+    const cont = document.getElementById('agEntrenoCalDetalle')
+    if (!entrenoDiaSeleccionado) { cont.style.display = 'none'; return }
+    cont.style.display = 'flex'
+    const [y, m, d] = entrenoDiaSeleccionado.split('-')
+
+    if (!entrenoCategorias.length) {
+      cont.innerHTML = `<p class="ag-cal-detalle__titulo">${d}/${m}/${y}</p><p style="color:var(--muted);font-size:.8rem">Creá alguna categoría primero (⚙ Categorías) para poder marcar el día.</p>`
+      return
+    }
+
+    const registrosDia = (porFecha || {})[entrenoDiaSeleccionado] || []
+    cont.innerHTML = `
+      <p class="ag-cal-detalle__titulo">${d}/${m}/${y}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+        ${entrenoCategorias.map(c => {
+          const marcado = registrosDia.some(r => r.categoria_id === c.id)
+          return `<button class="ag-tipo-btn" style="${marcado ? `border-color:${c.color};background:${c.color}22;color:${c.color}` : ''}" onclick="window._agToggleEntreno('${entrenoDiaSeleccionado}',${c.id})">${marcado ? '✓ ' : ''}${c.nombre}</button>`
+        }).join('')}
+      </div>
+    `
+  }
+
+  window._agToggleEntreno = async function (fecha, categoriaId) {
+    const existente = entrenoRegistros.find(r => r.fecha === fecha && r.categoria_id === categoriaId)
+    if (existente) {
+      const { error } = await supabase.from('entreno_registros').delete().eq('id', existente.id)
+      if (error) { alert('Error: ' + error.message); return }
+    } else {
+      const { error } = await supabase.from('entreno_registros').insert([{ fecha, categoria_id: categoriaId }])
+      if (error) { alert('Error: ' + error.message); return }
+    }
+    await cargarEntrenoMes()
+    await cargarEntrenoFrase()
+    await cargarEntrenoStatsLista()
+  }
+
+  // ── Resumen semanal + frase ──────────────────────────────────────────
+  function lunesDeEstaSemana() {
+    const hoy = new Date()
+    const dia = (hoy.getDay() + 6) % 7 // lunes = 0
+    const lunes = new Date(hoy)
+    lunes.setDate(hoy.getDate() - dia)
+    lunes.setHours(0, 0, 0, 0)
+    return lunes
+  }
+  const fmtFecha = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+
+  // La frase de arriba siempre mide la semana actual, sin importar qué
+  // período esté elegido abajo en las estadísticas.
+  async function cargarEntrenoFrase() {
+    const lunes = lunesDeEstaSemana()
+    const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
+    const { data, error } = await supabase.from('entreno_registros').select('*').gte('fecha', fmtFecha(lunes)).lte('fecha', fmtFecha(domingo))
+    if (error) { console.error('[entreno] error al cargar la semana:', error); return }
+    renderEntrenoFrase(data || [])
+  }
+
+  // Frases sarcásticas pero sin pegarle al cuerpo/peso de nadie — la intensidad
+  // sube y baja según cuánto se cumplió la meta semanal, no el aspecto físico.
+  // Estas son el FALLBACK: se usan solo si un nivel todavía no tiene frases
+  // propias cargadas en la tabla entreno_frases (ver más abajo).
+  const FRASES_ENTRENO_DEFAULT = {
+    cero: [
+      'Esta semana el deporte fue un mito urbano.',
+      'Ni una vez. El deporte te mandó carta documento por abandono de persona.',
+      'Semana cardio cero, sofá cien.',
+      'Tu ropa deportiva juntó tanto polvo que ya califica como pieza de museo.',
+      'Descanso total. Ni Netflix pausa tanto.',
+    ],
+    una: [
+      'Una vez. Técnicamente no mentiste cuando dijiste que "entrenabas esta semana".',
+      'Un día de gloria rodeado de seis de sofá.',
+      'Fuiste, viste, y decidiste que con eso alcanzaba.',
+      'El mínimo indispensable para no sentir culpa. Estrategia legítima.',
+      'Una sesión heroica. El resto, silencio absoluto.',
+    ],
+    pocas: [
+      'Ahí vamos. No sos un atleta todavía, pero tampoco un mueble.',
+      'Dos o tres veces. Nivel "estoy tratando" confirmado.',
+      'Vas en serio, a medias, pero en serio.',
+      'Nada mal. El sofá ya no te reconoce del todo.',
+      'Constancia razonable. Guardátelo para cuando te pregunten cómo venís entrenando.',
+    ],
+    muchas: [
+      'Cuatro o más. ¿Quién sos y qué hiciste con la persona que inventaba excusas?',
+      'Semana de atleta. Andá a colgarte una medalla imaginaria.',
+      'Overachiever total. El sofá te extraña, pero entiende que ahora tenés otra vida.',
+      'Rompiste el molde. Bajale un cambio o vas a terminar dando charlas motivacionales.',
+      'Semana perfecta. Orgullo nacional.',
+    ],
+  }
+
+  function renderEntrenoFrase(registrosSemana) {
+    const frEl = document.getElementById('agEntrenoFrase')
+    // Cuenta días distintos con AL MENOS una categoría entrenada esa semana,
+    // sin importar cuál — no depende de que tengan meta cargada.
+    const diasEntrenados = new Set(registrosSemana.map(r => r.fecha)).size
+
+    let bucket
+    if (diasEntrenados === 0) bucket = 'cero'
+    else if (diasEntrenados === 1) bucket = 'una'
+    else if (diasEntrenados <= 3) bucket = 'pocas'
+    else bucket = 'muchas'
+
+    // Prioridad: frases propias cargadas para este nivel. Si no hay ninguna,
+    // caemos a las de por defecto para que nunca quede vacío.
+    const propias = entrenoFrases.filter(f => f.nivel === bucket).map(f => f.texto)
+    const frases = propias.length > 0 ? propias : FRASES_ENTRENO_DEFAULT[bucket]
+    frEl.textContent = frases[Math.floor(Math.random() * frases.length)]
+  }
+
+  // ── Frases propias — cargadas por mí, clasificadas por nivel ────────
+  let entrenoFrases = []          // todas las frases propias, desde la BD
+  let frasesNivelFiltro = 'cero'  // nivel que se está viendo en el modal
+
+  const NIVELES_ENTRENO = [
+    { id: 'cero',   label: '0 días' },
+    { id: 'una',    label: '1 día' },
+    { id: 'pocas',  label: '2-3 días' },
+    { id: 'muchas', label: '4+ días' },
+  ]
+
+  async function cargarEntrenoFrasesDB() {
+    const { data, error } = await supabase.from('entreno_frases').select('*').order('nivel', { ascending: true }).order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[entreno] error al cargar frases:', error); return }
+    entrenoFrases = data || []
+  }
+
+  document.getElementById('agBtnFrasesEntreno').addEventListener('click', () => {
+    frasesNivelFiltro = 'cero'
+    renderFrasesEntrenoTabs()
+    renderFrasesEntrenoLista()
+    resetFormFraseEntreno()
+    document.getElementById('agModalFrasesEntreno').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalFrasesEntreno').addEventListener('click', () =>
+    document.getElementById('agModalFrasesEntreno').classList.remove('activo'))
+
+  function renderFrasesEntrenoTabs() {
+    const cont = document.getElementById('agFrasesEntrenoTabs')
+    cont.innerHTML = NIVELES_ENTRENO.map(n =>
+      `<button class="ag-fin-periodo__btn${frasesNivelFiltro === n.id ? ' activo' : ''}" data-nivel="${n.id}">${n.label}</button>`
+    ).join('')
+    cont.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      frasesNivelFiltro = b.dataset.nivel
+      renderFrasesEntrenoTabs()
+      renderFrasesEntrenoLista()
+      document.getElementById('agFraseEntrenoNivel').value = frasesNivelFiltro
+    }))
+  }
+
+  function renderFrasesEntrenoLista() {
+    const cont = document.getElementById('agFrasesEntrenoLista')
+    const propias = entrenoFrases.filter(f => f.nivel === frasesNivelFiltro)
+    if (!propias.length) {
+      const def = FRASES_ENTRENO_DEFAULT[frasesNivelFiltro] || []
+      cont.innerHTML = `<p style="font-size:.76rem;color:var(--muted);margin:0 0 .6rem">Todavía no cargaste frases propias para este nivel — mientras tanto se usan estas por defecto:</p>` +
+        def.map(t => `<div class="ag-frase-row ag-frase-row--default"><span class="ag-frase-row__texto">${t}</span><span class="ag-frase-row__tag">por defecto</span></div>`).join('')
+      return
+    }
+    cont.innerHTML = propias.map(f => `
+      <div class="ag-frase-row">
+        <span class="ag-frase-row__texto">${f.texto}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarFraseEntreno(${f.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarFraseEntreno(${f.id})">🗑</button>
+      </div>
+    `).join('')
+  }
+
+  function resetFormFraseEntreno() {
+    document.getElementById('agFraseEntrenoEditId').value = ''
+    document.getElementById('agFraseEntrenoTexto').value = ''
+    document.getElementById('agFraseEntrenoNivel').value = frasesNivelFiltro
+    document.getElementById('agFraseEntrenoError').textContent = ''
+    document.getElementById('agBtnGuardarFraseEntreno').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionFraseEntreno').style.display = 'none'
+  }
+
+  window._agEditarFraseEntreno = function (id) {
+    const f = entrenoFrases.find(x => x.id === id)
+    if (!f) return
+    document.getElementById('agFraseEntrenoEditId').value = f.id
+    document.getElementById('agFraseEntrenoTexto').value = f.texto
+    document.getElementById('agFraseEntrenoNivel').value = f.nivel
+    document.getElementById('agBtnGuardarFraseEntreno').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionFraseEntreno').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionFraseEntreno').addEventListener('click', resetFormFraseEntreno)
+
+  window._agEliminarFraseEntreno = async function (id) {
+    if (!confirm('¿Eliminar esta frase?')) return
+    const { error } = await supabase.from('entreno_frases').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarEntrenoFrasesDB()
+    renderFrasesEntrenoLista()
+  }
+
+  document.getElementById('agBtnGuardarFraseEntreno').addEventListener('click', async () => {
+    const errEl = document.getElementById('agFraseEntrenoError')
+    errEl.textContent = ''
+    const id = document.getElementById('agFraseEntrenoEditId').value
+    const datos = {
+      texto: document.getElementById('agFraseEntrenoTexto').value.trim(),
+      nivel: document.getElementById('agFraseEntrenoNivel').value,
+    }
+    if (!datos.texto) { errEl.textContent = 'La frase no puede estar vacía.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('entreno_frases').update(datos).eq('id', id))
+    } else {
+      const yaEnNivel = entrenoFrases.filter(f => f.nivel === datos.nivel).length
+      ;({ error } = await supabase.from('entreno_frases').insert([{ ...datos, orden: yaEnNivel }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    frasesNivelFiltro = datos.nivel
+    await cargarEntrenoFrasesDB()
+    renderFrasesEntrenoTabs()
+    renderFrasesEntrenoLista()
+    resetFormFraseEntreno()
+  })
+
+  // ── Lista de estadísticas de abajo — elegible por Semana / Mes ──────
+  let entrenoStatsPeriodo = 'semana'
+
+  document.getElementById('agEntrenoStatsPeriodo').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agEntrenoStatsPeriodo .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    entrenoStatsPeriodo = btn.dataset.periodo
+    cargarEntrenoStatsLista()
+  })
+
+  async function cargarEntrenoStatsLista() {
+    let desde, hasta
+    if (entrenoStatsPeriodo === 'semana') {
+      const lunes = lunesDeEstaSemana()
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
+      desde = fmtFecha(lunes); hasta = fmtFecha(domingo)
+    } else {
+      const hoy = new Date()
+      desde = fmtFecha(new Date(hoy.getFullYear(), hoy.getMonth(), 1))
+      hasta = fmtFecha(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0))
+    }
+    const { data, error } = await supabase.from('entreno_registros').select('*').gte('fecha', desde).lte('fecha', hasta)
+    if (error) { console.error('[entreno] error al cargar estadísticas:', error); return }
+    renderEntrenoStatsLista(data || [])
+  }
+
+  function renderEntrenoStatsLista(registros) {
+    const contarDias = categoriaId => new Set(registros.filter(r => r.categoria_id === categoriaId).map(r => r.fecha)).size
+    const esSemana = entrenoStatsPeriodo === 'semana'
+
+    const filas = entrenoCategorias.map(c => {
+      const logrado = contarDias(c.id)
+      // La meta es semanal — en la vista "Mes" solo mostramos el conteo total,
+      // sin comparar contra una meta escalada (sería un número inventado).
+      if (esSemana && c.meta_semanal) {
+        const cumplida = logrado >= c.meta_semanal
+        return `
+          <div class="ag-entreno-meta-fila">
+            <span class="ag-entreno-meta-fila__color" style="background:${c.color}"></span>
+            <span class="ag-entreno-meta-fila__nombre">${c.nombre}</span>
+            <span class="ag-entreno-meta-fila__valor ${cumplida ? 'ag-entreno-meta-fila__valor--ok' : 'ag-entreno-meta-fila__valor--falta'}">${logrado}/${c.meta_semanal}</span>
+          </div>`
+      }
+      return `
+        <div class="ag-entreno-meta-fila">
+          <span class="ag-entreno-meta-fila__color" style="background:${c.color}"></span>
+          <span class="ag-entreno-meta-fila__nombre">${c.nombre}</span>
+          <span class="ag-entreno-meta-fila__valor ag-entreno-meta-fila__valor--neutro">${logrado} día${logrado === 1 ? '' : 's'}</span>
+        </div>`
+    }).join('')
+
+    document.getElementById('agEntrenoMetasLista').innerHTML = filas
+      || '<p style="color:var(--muted);font-size:.8rem">Todavía no creaste ninguna categoría.</p>'
+  }
 
   // ══════════════════════════════════════════
   //  INIT

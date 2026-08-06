@@ -97,6 +97,9 @@
     .ag-cal-mas { font-size: .58rem; color: var(--muted); padding-left: .2rem; }
     .ag-cal-dot-wrap { display: none; flex-wrap: wrap; gap: 2px; }
     .ag-cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    .ag-cal-grid--chico .ag-cal-day { min-height: 46px; padding: .2rem; gap: 0; }
+    .ag-cal-grid--chico .ag-cal-day__num { font-size: .64rem; }
     .ag-cal-detalle { margin-top: 1rem; display: flex; flex-direction: column; gap: .5rem; }
     .ag-cal-detalle__titulo { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin: 0 0 .2rem; }
 
@@ -267,6 +270,24 @@
     .ag-metrica-externa-fila:last-child { border-bottom: none; }
     .ag-metrica-externa-fila__nota { color: var(--muted); font-size: .68rem; font-style: italic; }
 
+    .ag-entreno-frase {
+      background: var(--cyan-dim); border: 1px solid var(--cyan-mid); border-radius: 10px;
+      padding: .9rem 1.1rem; font-size: .88rem; font-weight: 600; color: var(--text); margin: 0; line-height: 1.5;
+    }
+    .ag-entreno-meta-fila { display: flex; align-items: center; gap: .7rem; padding: .6rem .2rem; border-bottom: 1px solid var(--border); }
+    .ag-entreno-meta-fila:last-child { border-bottom: none; }
+    .ag-entreno-meta-fila__color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .ag-entreno-meta-fila__nombre { flex: 1; font-size: .84rem; font-weight: 600; color: var(--text); }
+    .ag-entreno-meta-fila__valor { font-size: .8rem; font-weight: 700; }
+    .ag-entreno-meta-fila__valor--ok { color: #3ecf8e; }
+    .ag-entreno-meta-fila__valor--falta { color: #d94060; }
+    .ag-entreno-meta-fila__valor--neutro { color: var(--muted); }
+    .ag-frase-row { display: flex; align-items: flex-start; gap: .5rem; padding: .55rem .2rem; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .ag-frase-row:last-child { border-bottom: none; }
+    .ag-frase-row__texto { flex: 1; color: var(--text); line-height: 1.4; }
+    .ag-frase-row--default { color: var(--muted); }
+    .ag-frase-row__tag { font-size: .62rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: .1rem .4rem; flex-shrink: 0; white-space: nowrap; margin-top: .1rem; }
+
     .ag-proyecto-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: .8rem; }
     .ag-proyecto-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
     .ag-proyecto-card__color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -364,6 +385,7 @@
         <button class="ag-nav-item" data-vista="estudio">📚 Estudio</button>
         <button class="ag-nav-item" data-vista="pantalla">📱 Pantalla</button>
         <button class="ag-nav-item" data-vista="proyectos">🗂️ Proyectos</button>
+        <button class="ag-nav-item" data-vista="entreno">💪 Entreno</button>
         <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
@@ -774,6 +796,38 @@
             <p class="ag-empty" id="agBasesExternasEmpty" style="display:none">Todavía no registraste ninguna otra base.</p>
           </div>
         </div>
+
+        <!-- VISTA ENTRENO -->
+        <div id="agVistaEntreno" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
+            <p class="ag-section-label" style="margin:0">💪 Entrenamiento</p>
+            <div style="display:flex;gap:.5rem">
+              <button class="btn btn--sm" id="agBtnCategoriasEntreno">⚙ Categorías</button>
+              <button class="btn btn--sm" id="agBtnFrasesEntreno">💬 Frases</button>
+            </div>
+          </div>
+
+          <p class="ag-entreno-frase" id="agEntrenoFrase"></p>
+
+          <div class="ag-cal-nav" style="margin-top:1.3rem">
+            <button class="ag-cal-nav__btn" id="agEntrenoCalPrev">←</button>
+            <p class="ag-cal-nav__mes" id="agEntrenoCalMes"></p>
+            <button class="ag-cal-nav__btn" id="agEntrenoCalNext">→</button>
+          </div>
+          <div class="ag-cal-grid ag-cal-grid--chico" id="agEntrenoCalGrid"></div>
+          <div class="ag-cal-detalle" id="agEntrenoCalDetalle" style="display:none"></div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.4rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;gap:.6rem">
+              <p class="ag-section-label" style="margin:0">📊 Estadísticas</p>
+              <div class="ag-fin-periodo" id="agEntrenoStatsPeriodo">
+                <button class="ag-fin-periodo__btn activo" data-periodo="semana">Semana</button>
+                <button class="ag-fin-periodo__btn" data-periodo="mes">Mes</button>
+              </div>
+            </div>
+            <div id="agEntrenoMetasLista"></div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -952,6 +1006,72 @@
       <div style="display:flex;gap:.5rem">
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoria">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionCategoria" style="display:none">Cancelar edición</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de categorías de Entreno -->
+  <div class="modal-overlay" id="agModalCategoriasEntreno">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalCategoriasEntreno">✕</button>
+      <h2 class="modal__title">Categorías de entrenamiento</h2>
+      <div id="agCategoriasEntrenoLista" style="margin-bottom:1.3rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar categoría nueva</p>
+      <input type="hidden" id="agCategoriaEntrenoEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agCategoriaEntrenoNombre" class="form-input" placeholder="Ej: Calistenia"/>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1rem">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">Meta semanal (opcional)</label>
+          <input type="number" id="agCategoriaEntrenoMeta" class="form-input" min="0" placeholder="Ej: 2"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Color</label>
+          <input type="color" id="agCategoriaEntrenoColor" value="#159A9C" style="width:48px;height:38px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px"/>
+        </div>
+      </div>
+      <p style="font-size:.7rem;color:var(--muted);margin:0 0 .8rem">Sin meta = se cuenta igual, pero no aparece en el resumen semanal de cumplimiento.</p>
+      <p class="form-error" id="agCategoriaEntrenoError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoriaEntreno">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionCategoriaEntreno" style="display:none">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: gestor de frases de Entreno -->
+  <div class="modal-overlay" id="agModalFrasesEntreno">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalFrasesEntreno">✕</button>
+      <h2 class="modal__title">Frases del resumen semanal</h2>
+      <p style="font-size:.72rem;color:var(--muted);margin:-.6rem 0 1rem">Elegí un nivel y armá tu propia lista de frases. Si un nivel todavía no tiene frases propias, se siguen usando las de por defecto.</p>
+
+      <div class="ag-fin-periodo" id="agFrasesEntrenoTabs" style="margin-bottom:1rem;flex-wrap:wrap"></div>
+
+      <div id="agFrasesEntrenoLista" style="margin-bottom:1.3rem;display:flex;flex-direction:column;gap:.2rem"></div>
+
+      <p class="form-label" style="margin-bottom:.6rem">Agregar frase</p>
+      <input type="hidden" id="agFraseEntrenoEditId"/>
+      <div class="form-group">
+        <label class="form-label">Texto</label>
+        <textarea id="agFraseEntrenoTexto" class="form-input" rows="2" placeholder="Ej: Esta semana el deporte fue un mito urbano."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nivel</label>
+        <select id="agFraseEntrenoNivel" class="form-input">
+          <option value="cero">0 días</option>
+          <option value="una">1 día</option>
+          <option value="pocas">2-3 días</option>
+          <option value="muchas">4+ días</option>
+        </select>
+      </div>
+      <p class="form-error" id="agFraseEntrenoError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarFraseEntreno">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionFraseEntreno" style="display:none">Cancelar</button>
       </div>
     </div>
   </div>
