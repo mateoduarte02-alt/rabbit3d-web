@@ -302,6 +302,7 @@
     document.getElementById('agVistaPantalla').style.display = vistaActual === 'pantalla' ? 'block' : 'none'
     document.getElementById('agVistaProyectos').style.display = vistaActual === 'proyectos' ? 'block' : 'none'
     document.getElementById('agVistaEntreno').style.display = vistaActual === 'entreno' ? 'block' : 'none'
+    document.getElementById('agVistaHuevos').style.display = vistaActual === 'huevos' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
     if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
@@ -309,6 +310,7 @@
     if (vistaActual === 'pantalla') cargarPantallaTab()
     if (vistaActual === 'proyectos') cargarProyectos()
     if (vistaActual === 'entreno') cargarEntrenoTab()
+    if (vistaActual === 'huevos') cargarHuevosTab()
   })
 
   document.getElementById('agCalPrev').addEventListener('click', () => { calMesActual.setMonth(calMesActual.getMonth() - 1); renderCalendario() })
@@ -2779,6 +2781,23 @@
     ],
   }
 
+  // Personaje ilustrado que acompaña la frase — cambia según el nivel de
+  // la semana. Buscadamente NO usa el cuerpo/peso como eje del chiste
+  // (ver nota en FRASES_ENTRENO_DEFAULT): juega con energía/actitud en
+  // vez de gordura — dormido en el sofá → cansado → trotando → flexionando.
+  // Personaje ilustrado que acompaña la frase — cambia según el nivel de
+  // la semana. Buscadamente NO usa el cuerpo/peso como eje del chiste
+  // (ver nota en FRASES_ENTRENO_DEFAULT): juega con energía/actitud en
+  // vez de gordura — dormido en el sofá → cansado → trotando → flexionando.
+  // Personaje/emoji que acompaña la frase — cambia según el nivel de la
+  // semana.
+  const ENTRENO_PERSONAJES = {
+    cero: '🍔',
+    una: '👎',
+    pocas: '👍',
+    muchas: '💪',
+  }
+
   function renderEntrenoFrase(registrosSemana) {
     const frEl = document.getElementById('agEntrenoFrase')
     // Cuenta días distintos con AL MENOS una categoría entrenada esa semana,
@@ -2790,6 +2809,9 @@
     else if (diasEntrenados === 1) bucket = 'una'
     else if (diasEntrenados <= 3) bucket = 'pocas'
     else bucket = 'muchas'
+
+    const personajeEl = document.getElementById('agEntrenoPersonaje')
+    if (personajeEl) personajeEl.innerHTML = ENTRENO_PERSONAJES[bucket]
 
     // Prioridad: frases propias cargadas para este nivel. Si no hay ninguna,
     // caemos a las de por defecto para que nunca quede vacío.
@@ -2963,6 +2985,192 @@
 
     document.getElementById('agEntrenoMetasLista').innerHTML = filas
       || '<p style="color:var(--muted);font-size:.8rem">Todavía no creaste ninguna categoría.</p>'
+  }
+
+  // ══════════════════════════════════════════
+  //  HUEVOS — registro diario por comida (desayuno/almuerzo/merienda/cena)
+  //  y estadísticas por semana/mes/año. Un registro por fecha (upsert).
+  // ══════════════════════════════════════════
+  let huevosFecha = hoyISO()
+  let huevosPeriodo = 'semana'
+  let huevosRegistrosPeriodo = []   // registros del período elegido (stats + torta)
+  let huevosRecientes = []          // últimos días con registros (lista)
+
+  const HUEVOS_COMIDAS = [
+    { id: 'desayuno', label: 'Desayuno', icono: '🌅', color: '#f5e06a' },
+    { id: 'almuerzo', label: 'Almuerzo', icono: '☀️', color: '#f5c48a' },
+    { id: 'merienda', label: 'Merienda', icono: '🍪', color: '#f5a3c0' },
+    { id: 'cena',     label: 'Cena',     icono: '🌙', color: '#a3d9f5' },
+  ]
+
+  function totalHuevosFila(r) {
+    return HUEVOS_COMIDAS.reduce((a, c) => a + (Number(r[c.id]) || 0), 0)
+  }
+
+  async function cargarHuevosTab() {
+    document.getElementById('agHuevosFecha').value = huevosFecha
+    await cargarHuevosForm(huevosFecha)
+    await cargarHuevosPeriodo()
+    await cargarHuevosRecientes()
+  }
+
+  // ── Form del día ──────────────────────────────────────────────────
+  document.getElementById('agHuevosFecha').addEventListener('change', async e => {
+    huevosFecha = e.target.value || hoyISO()
+    await cargarHuevosForm(huevosFecha)
+  })
+
+  async function cargarHuevosForm(fecha) {
+    const { data, error } = await supabase.from('agenda_huevos').select('*').eq('fecha', fecha).maybeSingle()
+    if (error) { console.error('[huevos] error al cargar el día:', error); return }
+    HUEVOS_COMIDAS.forEach(c => {
+      document.getElementById('agHuevos_' + c.id).value = data ? (data[c.id] || 0) : 0
+    })
+  }
+
+  document.getElementById('agBtnGuardarHuevos').addEventListener('click', async () => {
+    const errEl = document.getElementById('agHuevosError')
+    errEl.textContent = ''
+    const datos = { fecha: huevosFecha }
+    HUEVOS_COMIDAS.forEach(c => {
+      datos[c.id] = Math.max(0, parseInt(document.getElementById('agHuevos_' + c.id).value) || 0)
+    })
+    const { error } = await supabase.from('agenda_huevos').upsert([datos], { onConflict: 'fecha' })
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarHuevosPeriodo()
+    await cargarHuevosRecientes()
+  })
+
+  // ── Estadísticas por período ─────────────────────────────────────
+  function rangoPeriodoHuevos(periodo) {
+    const hoy = new Date()
+    if (periodo === 'semana') {
+      const lunes = lunesDeEstaSemana()
+      const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6)
+      return { desde: fmtFecha(lunes), hasta: fmtFecha(domingo) }
+    }
+    if (periodo === 'anio') {
+      return { desde: fmtFecha(new Date(hoy.getFullYear(), 0, 1)), hasta: fmtFecha(new Date(hoy.getFullYear(), 11, 31)) }
+    }
+    // mes
+    return { desde: fmtFecha(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: fmtFecha(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)) }
+  }
+
+  document.getElementById('agHuevosPeriodo').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agHuevosPeriodo .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    huevosPeriodo = btn.dataset.periodo
+    cargarHuevosPeriodo()
+  })
+
+  async function cargarHuevosPeriodo() {
+    const { desde, hasta } = rangoPeriodoHuevos(huevosPeriodo)
+    const { data, error } = await supabase.from('agenda_huevos').select('*').gte('fecha', desde).lte('fecha', hasta)
+    if (error) { console.error('[huevos] error al cargar el período:', error); return }
+    huevosRegistrosPeriodo = data || []
+    renderHuevosStats()
+    renderHuevosPie()
+  }
+
+  function renderHuevosStats() {
+    const totales = huevosRegistrosPeriodo.map(totalHuevosFila)
+    const total = totales.reduce((a, b) => a + b, 0)
+
+    // Promedio sobre los días del período que ya pasaron, no sobre días futuros vacíos
+    const { desde, hasta } = rangoPeriodoHuevos(huevosPeriodo)
+    const hastaReal = hasta > hoyISO() ? hoyISO() : hasta
+    const diasTranscurridos = Math.max(1, Math.round((new Date(hastaReal) - new Date(desde)) / 86400000) + 1)
+    const promedio = total / diasTranscurridos
+
+    const record = totales.length ? Math.max(...totales) : 0
+
+    document.getElementById('agHuevosTotal').textContent = total
+    document.getElementById('agHuevosPromedio').textContent = promedio.toFixed(1)
+    document.getElementById('agHuevosRecord').textContent = record
+  }
+
+  function renderHuevosPie() {
+    const porComida = {}
+    HUEVOS_COMIDAS.forEach(c => porComida[c.id] = 0)
+    huevosRegistrosPeriodo.forEach(r => HUEVOS_COMIDAS.forEach(c => { porComida[c.id] += Number(r[c.id]) || 0 }))
+    const total = Object.values(porComida).reduce((a, b) => a + b, 0)
+
+    const pie = document.getElementById('agHuevosPie')
+    const empty = document.getElementById('agHuevosPieEmpty')
+    const leyenda = document.getElementById('agHuevosLeyenda')
+
+    if (!total) {
+      pie.style.background = 'var(--bg3)'
+      empty.style.display = 'block'
+      leyenda.innerHTML = ''
+      return
+    }
+    empty.style.display = 'none'
+
+    let acumulado = 0
+    const stops = []
+    const filas = HUEVOS_COMIDAS.map(c => {
+      const cant = porComida[c.id]
+      const pct = (cant / total) * 100
+      stops.push(`${c.color} ${acumulado}% ${acumulado + pct}%`)
+      acumulado += pct
+      return { ...c, cant, pct }
+    }).filter(f => f.cant > 0)
+
+    pie.style.background = `conic-gradient(${stops.join(', ')})`
+    leyenda.innerHTML = filas.map(f => `
+      <div class="ag-fin-leyenda__fila">
+        <span class="ag-fin-leyenda__dot" style="background:${f.color}"></span>
+        ${f.icono} ${f.label} · ${f.cant} huevo${f.cant === 1 ? '' : 's'}
+        <span class="ag-fin-leyenda__pct">${f.pct.toFixed(0)}%</span>
+      </div>
+    `).join('')
+  }
+
+  // ── Lista de últimos días cargados ───────────────────────────────
+  async function cargarHuevosRecientes() {
+    const { data, error } = await supabase.from('agenda_huevos').select('*').order('fecha', { ascending: false }).limit(14)
+    if (error) { console.error('[huevos] error al cargar recientes:', error); return }
+    huevosRecientes = (data || []).filter(r => totalHuevosFila(r) > 0)
+    renderHuevosRecientes()
+  }
+
+  function renderHuevosRecientes() {
+    const cont = document.getElementById('agHuevosLista')
+    if (!huevosRecientes.length) {
+      cont.innerHTML = '<p class="ag-empty" style="padding:1rem 0">Todavía no cargaste ningún día.</p>'
+      return
+    }
+    cont.innerHTML = huevosRecientes.map(r => {
+      const [y, m, d] = r.fecha.split('-')
+      const desglose = HUEVOS_COMIDAS.filter(c => Number(r[c.id]) > 0).map(c => `${c.icono}${r[c.id]}`).join(' ')
+      return `
+        <div class="ag-huevo-row">
+          <span class="ag-huevo-row__fecha">${d}/${m}/${y.slice(2)}</span>
+          <span class="ag-huevo-row__desglose">${desglose}</span>
+          <span class="ag-huevo-row__total">${totalHuevosFila(r)} 🥚</span>
+          <button class="ag-item__btn" title="Editar" onclick="window._agEditarHuevos('${r.fecha}')">✎</button>
+          <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarHuevos('${r.fecha}')">🗑</button>
+        </div>`
+    }).join('')
+  }
+
+  window._agEditarHuevos = async function (fecha) {
+    huevosFecha = fecha
+    document.getElementById('agHuevosFecha').value = fecha
+    await cargarHuevosForm(fecha)
+    document.getElementById('agHuevosForm').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  window._agEliminarHuevos = async function (fecha) {
+    if (!confirm('¿Eliminar el registro de este día?')) return
+    const { error } = await supabase.from('agenda_huevos').delete().eq('fecha', fecha)
+    if (error) { alert('Error: ' + error.message); return }
+    if (fecha === huevosFecha) await cargarHuevosForm(huevosFecha)
+    await cargarHuevosPeriodo()
+    await cargarHuevosRecientes()
   }
 
   // ══════════════════════════════════════════

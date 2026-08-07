@@ -270,6 +270,7 @@
     .ag-metrica-externa-fila:last-child { border-bottom: none; }
     .ag-metrica-externa-fila__nota { color: var(--muted); font-size: .68rem; font-style: italic; }
 
+    .ag-entreno-personaje { display: flex; justify-content: center; align-items: center; margin: .2rem 0 .8rem; font-size: 3.4rem; line-height: 1; }
     .ag-entreno-frase {
       background: var(--cyan-dim); border: 1px solid var(--cyan-mid); border-radius: 10px;
       padding: .9rem 1.1rem; font-size: .88rem; font-weight: 600; color: var(--text); margin: 0; line-height: 1.5;
@@ -287,6 +288,17 @@
     .ag-frase-row__texto { flex: 1; color: var(--text); line-height: 1.4; }
     .ag-frase-row--default { color: var(--muted); }
     .ag-frase-row__tag { font-size: .62rem; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: .1rem .4rem; flex-shrink: 0; white-space: nowrap; margin-top: .1rem; }
+    .ag-huevos-form { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; }
+    .ag-huevos-inputs { display: grid; grid-template-columns: repeat(2, 1fr); gap: .8rem; margin: 1rem 0; }
+    .ag-huevos-input { display: flex; flex-direction: column; gap: .3rem; }
+    .ag-huevos-input__label { font-size: .74rem; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: .35rem; }
+    .ag-huevos-input__swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    @media (max-width: 560px) { .ag-huevos-inputs { grid-template-columns: 1fr; } }
+    .ag-huevo-row { display: flex; align-items: center; gap: .7rem; padding: .6rem .2rem; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .ag-huevo-row:last-child { border-bottom: none; }
+    .ag-huevo-row__fecha { color: var(--text); font-weight: 700; width: 58px; flex-shrink: 0; }
+    .ag-huevo-row__desglose { flex: 1; color: var(--muted); }
+    .ag-huevo-row__total { color: var(--cyan); font-weight: 700; flex-shrink: 0; }
 
     .ag-proyecto-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: .8rem; }
     .ag-proyecto-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
@@ -386,6 +398,7 @@
         <button class="ag-nav-item" data-vista="pantalla">📱 Pantalla</button>
         <button class="ag-nav-item" data-vista="proyectos">🗂️ Proyectos</button>
         <button class="ag-nav-item" data-vista="entreno">💪 Entreno</button>
+        <button class="ag-nav-item" data-vista="huevos">🥚 Huevos</button>
         <button class="ag-nav-item" id="agBtnRecordatorios">🔔 Recordatorios</button>
       </nav>
       <div class="ag-sidebar__footer">
@@ -807,6 +820,7 @@
             </div>
           </div>
 
+          <div class="ag-entreno-personaje" id="agEntrenoPersonaje"></div>
           <p class="ag-entreno-frase" id="agEntrenoFrase"></p>
 
           <div class="ag-cal-nav" style="margin-top:1.3rem">
@@ -826,6 +840,75 @@
               </div>
             </div>
             <div id="agEntrenoMetasLista"></div>
+          </div>
+        </div>
+
+        <!-- VISTA HUEVOS -->
+        <div id="agVistaHuevos" style="display:none">
+          <p class="ag-section-label" style="margin:0 0 1rem">🥚 Huevos</p>
+
+          <div class="ag-huevos-form" id="agHuevosForm">
+            <div class="form-group" style="max-width:220px;margin-bottom:0">
+              <label class="form-label">Día</label>
+              <input type="date" id="agHuevosFecha" class="form-input"/>
+            </div>
+            <div class="ag-huevos-inputs">
+              <div class="ag-huevos-input">
+                <label class="ag-huevos-input__label" for="agHuevos_desayuno"><span class="ag-huevos-input__swatch" style="background:#f5e06a"></span>🌅 Desayuno</label>
+                <input type="number" id="agHuevos_desayuno" class="form-input" min="0" value="0"/>
+              </div>
+              <div class="ag-huevos-input">
+                <label class="ag-huevos-input__label" for="agHuevos_almuerzo"><span class="ag-huevos-input__swatch" style="background:#f5c48a"></span>☀️ Almuerzo</label>
+                <input type="number" id="agHuevos_almuerzo" class="form-input" min="0" value="0"/>
+              </div>
+              <div class="ag-huevos-input">
+                <label class="ag-huevos-input__label" for="agHuevos_merienda"><span class="ag-huevos-input__swatch" style="background:#f5a3c0"></span>🍪 Merienda</label>
+                <input type="number" id="agHuevos_merienda" class="form-input" min="0" value="0"/>
+              </div>
+              <div class="ag-huevos-input">
+                <label class="ag-huevos-input__label" for="agHuevos_cena"><span class="ag-huevos-input__swatch" style="background:#a3d9f5"></span>🌙 Cena</label>
+                <input type="number" id="agHuevos_cena" class="form-input" min="0" value="0"/>
+              </div>
+            </div>
+            <p class="form-error" id="agHuevosError"></p>
+            <button class="btn btn--primary" id="agBtnGuardarHuevos">Guardar día</button>
+          </div>
+
+          <div class="ag-fin-periodo" id="agHuevosPeriodo" style="margin-top:1.4rem">
+            <button class="ag-fin-periodo__btn activo" data-periodo="semana">Semana</button>
+            <button class="ag-fin-periodo__btn" data-periodo="mes">Mes</button>
+            <button class="ag-fin-periodo__btn" data-periodo="anio">Año</button>
+          </div>
+
+          <div class="ag-stats" style="margin-top:1rem">
+            <div class="ag-stat-card">
+              <span class="ag-stat-card__icon">🥚</span>
+              <div><p class="ag-stat-card__label">Total período</p><p class="ag-stat-card__num" id="agHuevosTotal">0</p></div>
+            </div>
+            <div class="ag-stat-card">
+              <span class="ag-stat-card__icon">📊</span>
+              <div><p class="ag-stat-card__label">Promedio diario</p><p class="ag-stat-card__num" id="agHuevosPromedio">0</p></div>
+            </div>
+            <div class="ag-stat-card">
+              <span class="ag-stat-card__icon">🏆</span>
+              <div><p class="ag-stat-card__label">Mejor día</p><p class="ag-stat-card__num" id="agHuevosRecord">0</p></div>
+            </div>
+          </div>
+
+          <div class="ag-fin-grid">
+            <div class="ag-fin-pie-card">
+              <p class="ag-section-label" style="margin:0 0 1rem">Por comida</p>
+              <div class="ag-fin-pie-wrap">
+                <div class="ag-fin-pie" id="agHuevosPie"></div>
+                <p class="ag-empty" id="agHuevosPieEmpty" style="display:none;padding:1rem 0">Sin registros en este período.</p>
+              </div>
+              <div class="ag-fin-leyenda" id="agHuevosLeyenda"></div>
+            </div>
+
+            <div class="ag-fin-lista-card">
+              <p class="ag-section-label" style="margin:0 0 .9rem">Últimos días cargados</p>
+              <div id="agHuevosLista"></div>
+            </div>
           </div>
         </div>
       </div>
