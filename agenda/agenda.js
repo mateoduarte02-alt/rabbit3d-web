@@ -3174,6 +3174,90 @@
   }
 
   // ══════════════════════════════════════════
+  //  MENÚ EDITABLE — ocultar/mostrar pestañas del sidebar sin perder
+  //  funcionalidad: las que se ocultan siguen andando igual, se accede a
+  //  ellas desde "⚙ Editar menú" tocando el nombre.
+  // ══════════════════════════════════════════
+  const TABS_MENU = [
+    { id: 'lista',         icono: '📋', label: 'Lista' },
+    { id: 'calendario',    icono: '📅', label: 'Calendario' },
+    { id: 'carpetas',      icono: '📝', label: 'Notas' },
+    { id: 'finanzas',      icono: '💰', label: 'Finanzas' },
+    { id: 'estudio',       icono: '📚', label: 'Estudio' },
+    { id: 'pantalla',      icono: '📱', label: 'Pantalla' },
+    { id: 'proyectos',     icono: '🗂️', label: 'Proyectos' },
+    { id: 'entreno',       icono: '💪', label: 'Entreno' },
+    { id: 'huevos',        icono: '🥚', label: 'Huevos' },
+    { id: 'recordatorios', icono: '🔔', label: 'Recordatorios' },
+  ]
+  let tabsOcultas = []
+
+  function botonDeTab(id) {
+    return id === 'recordatorios'
+      ? document.getElementById('agBtnRecordatorios')
+      : document.querySelector(`#agVistaToggle [data-vista="${id}"]`)
+  }
+
+  async function cargarTabsOcultas() {
+    const { data, error } = await supabase.from('agenda_config').select('*').eq('clave', 'tabs_ocultas').maybeSingle()
+    if (error) { console.error('[menu] error al cargar config:', error); return }
+    tabsOcultas = (data && Array.isArray(data.valor)) ? data.valor : []
+    aplicarTabsOcultas()
+  }
+
+  function aplicarTabsOcultas() {
+    TABS_MENU.forEach(t => {
+      const btn = botonDeTab(t.id)
+      if (btn) btn.style.display = tabsOcultas.includes(t.id) ? 'none' : 'flex'
+    })
+  }
+
+  async function guardarTabsOcultas() {
+    const { error } = await supabase.from('agenda_config').upsert([{ clave: 'tabs_ocultas', valor: tabsOcultas }], { onConflict: 'clave' })
+    if (error) alert('Error al guardar: ' + error.message)
+  }
+
+  function renderPestanasModal() {
+    const cont = document.getElementById('agPestanasLista')
+    cont.innerHTML = TABS_MENU.map(t => `
+      <div class="ag-pestana-row">
+        <button class="ag-pestana-row__ir" onclick="window._agIrAPestana('${t.id}')" title="Ir a esta pestaña">
+          <span>${t.icono}</span> ${t.label}
+        </button>
+        <label class="ag-switch">
+          <input type="checkbox" data-tab-toggle="${t.id}" ${tabsOcultas.includes(t.id) ? '' : 'checked'}/>
+          <span class="ag-switch__track"></span>
+        </label>
+      </div>`).join('')
+    cont.querySelectorAll('[data-tab-toggle]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const id = inp.dataset.tabToggle
+        if (inp.checked) tabsOcultas = tabsOcultas.filter(x => x !== id)
+        else if (!tabsOcultas.includes(id)) tabsOcultas.push(id)
+        aplicarTabsOcultas()
+        await guardarTabsOcultas()
+      })
+    })
+  }
+
+  window._agIrAPestana = function (id) {
+    document.getElementById('agModalPestanas').classList.remove('activo')
+    if (id === 'recordatorios') {
+      document.getElementById('agModalRecordatorios').classList.add('activo')
+      return
+    }
+    const btn = document.querySelector(`#agVistaToggle [data-vista="${id}"]`)
+    if (btn) btn.click()
+  }
+
+  document.getElementById('agBtnEditarMenu').addEventListener('click', () => {
+    renderPestanasModal()
+    document.getElementById('agModalPestanas').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalPestanas').addEventListener('click', () =>
+    document.getElementById('agModalPestanas').classList.remove('activo'))
+
+  // ══════════════════════════════════════════
   //  INIT
   // ══════════════════════════════════════════
   ;(async () => {
@@ -3185,5 +3269,6 @@
     document.getElementById('agContenido').style.display = 'block'
     await cargarTipos()
     await cargarItems()
+    await cargarTabsOcultas()
   })()
 })()
