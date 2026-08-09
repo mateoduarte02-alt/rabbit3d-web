@@ -655,9 +655,10 @@
     if (error) { alert('Error: ' + error.message); return }
     input.value = ''
     await cargarNotas(carpetaActualId)
-    await cargarCarpetas() // refrescar conteos (queda oculto detrás, se recalcula al volver)
-    document.getElementById('agCarpetasGrid-wrap').style.display = 'none'
-    document.getElementById('agCarpetaDetalle').style.display = 'block'
+    // Nota: antes acá se refrescaba también la grilla de carpetas (cargarCarpetas()),
+    // pero esa función resetea carpetaActualId a null como efecto secundario, lo que
+    // rompía el agregado de la segunda nota en adelante. No hace falta: renderCarpetasGrid()
+    // ya trae los datos frescos de la base cada vez que se vuelve a la grilla.
   }
   document.getElementById('agBtnAgregarNota').addEventListener('click', agregarNota)
   document.getElementById('agNuevaNotaInput').addEventListener('keydown', e => { if (e.key === 'Enter') agregarNota() })
