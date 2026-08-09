@@ -303,6 +303,7 @@
 
     // Vitrina pública de catálogos — la ve cualquiera, sin necesidad de sesión.
     document.getElementById('catVistaAdmin').style.display = 'block'
+    await cargarConfigCatalogos()
     await cargarPanelAdmin()
 
     // Si el admin llega con ?stats=1 (link desde el panel de La Madriguera),
@@ -404,8 +405,47 @@
 
   document.getElementById('catBtnCrearElMio').addEventListener('click', async e => {
     e.preventDefault()
+    if (!esAdminCat && !creacionCatalogosHabilitada) {
+      document.getElementById('catModalFueraDeServicio').classList.add('activo')
+      return
+    }
     await chequearSesion()
     abrirModalCrearPropio()
+  })
+  document.getElementById('catBtnCerrarFueraDeServicio').addEventListener('click', () =>
+    document.getElementById('catModalFueraDeServicio').classList.remove('activo'))
+  document.getElementById('catBtnEntendidoFueraDeServicio').addEventListener('click', () =>
+    document.getElementById('catModalFueraDeServicio').classList.remove('activo'))
+
+  // ── Autoservicio de catálogos: on/off, solo lo puede tocar el admin ──
+  let creacionCatalogosHabilitada = false // fail-safe: si algo falla al leer, queda apagado
+
+  async function cargarConfigCatalogos() {
+    try {
+      const { data, error } = await supabase.from('catalogos_config').select('valor').eq('clave', 'creacion_catalogos_habilitada').maybeSingle()
+      if (error) throw error
+      creacionCatalogosHabilitada = data ? data.valor === true : false
+    } catch (e) {
+      console.error('[catalogos] no se pudo leer catalogos_config:', e)
+      creacionCatalogosHabilitada = false
+    }
+    const wrap = document.getElementById('catToggleAutoservicioWrap')
+    const chk  = document.getElementById('catToggleAutoservicio')
+    if (esAdminCat) {
+      wrap.style.display = 'flex'
+      chk.checked = creacionCatalogosHabilitada
+    } else {
+      wrap.style.display = 'none'
+    }
+  }
+
+  document.getElementById('catToggleAutoservicio').addEventListener('change', async e => {
+    if (!esAdminCat) return
+    const nuevoValor = e.target.checked
+    const { error } = await supabase.from('catalogos_config')
+      .upsert([{ clave: 'creacion_catalogos_habilitada', valor: nuevoValor }], { onConflict: 'clave' })
+    if (error) { alert('Error al guardar: ' + error.message); e.target.checked = !nuevoValor; return }
+    creacionCatalogosHabilitada = nuevoValor
   })
 
   document.getElementById('catBtnCerrarEstadisticas').addEventListener('click', () =>

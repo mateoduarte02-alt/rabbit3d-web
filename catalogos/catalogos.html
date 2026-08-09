@@ -25,7 +25,10 @@
     .cat-login { max-width: 380px; margin: 3rem auto; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.6rem; }
     .cat-login h2 { font-family: var(--font-head); color: var(--cyan); font-size: 1rem; margin: 0 0 1rem; text-align: center; }
 
-    .cat-admin-toolbar { display:flex; justify-content:flex-end; gap:.6rem; margin-bottom: 1.2rem; }
+    .cat-admin-toolbar { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.6rem; margin-bottom: 1.2rem; }
+    .cat-toggle-autoservicio { display:flex; align-items:center; gap:.5rem; font-size:.72rem; color: var(--muted); cursor:pointer; background: rgba(255,255,255,.04); border:1px solid var(--border); border-radius: 8px; padding:.4rem .7rem; }
+    .cat-toggle-autoservicio input { accent-color: var(--cyan); width:15px; height:15px; cursor:pointer; }
+    .cat-toggle-autoservicio em { font-style: normal; opacity: .75; }
     .cat-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
     .cat-admin-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; cursor: pointer; transition: border-color .2s, transform .2s; position: relative; }
     .cat-admin-card:hover { border-color: var(--cyan-mid); transform: translateY(-2px); }
@@ -406,6 +409,10 @@
       </div>
       <div class="cat-admin-toolbar">
         <button class="btn btn--primary btn--sm" id="catBtnCrearElMio">¿Tenés un emprendimiento? Creá tu catálogo</button>
+        <label class="cat-toggle-autoservicio" id="catToggleAutoservicioWrap" style="display:none">
+          <input type="checkbox" id="catToggleAutoservicio"/>
+          <span>Autoservicio de catálogos activo <em>(solo vos ves este switch)</em></span>
+        </label>
       </div>
       <div id="catNuevosAviso" style="display:none" class="cat-nuevos-aviso"></div>
       <div class="cat-admin-grid" id="catAdminGrid"></div>
@@ -514,6 +521,20 @@
       <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-tarjetas')">💌 Tarjetas de agradecimiento</button>
       <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-presupuesto')">📄 Generador de presupuestos</button>
       <button class="cat-owner-bar__tool" onclick="abrirEmprendedor('modal-fotoproducto')">🖼 Cambiar fondo de producto</button>
+    </div>
+  </div>
+
+  <!-- MODAL: autoservicio de catálogos fuera de servicio -->
+  <div class="modal-overlay" id="catModalFueraDeServicio">
+    <div class="modal" style="max-width:380px;text-align:center">
+      <button class="modal__close" id="catBtnCerrarFueraDeServicio">✕</button>
+      <div style="font-size:2.4rem">🚧</div>
+      <h2 class="modal__title" style="margin-top:.4rem">Fuera de servicio</h2>
+      <p style="font-size:.85rem;color:var(--text);line-height:1.6">
+        Esto lo abrí en su momento y después me arrepentí. Por ahora no se pueden crear catálogos nuevos — quedate tranquilo, no rompiste nada, simplemente está apagado.
+      </p>
+      <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">Volvé a probar más adelante, capaz lo reactivo.</p>
+      <button class="btn btn--primary btn--full" id="catBtnEntendidoFueraDeServicio" style="margin-top:1rem">Entendido</button>
     </div>
   </div>
 
