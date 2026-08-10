@@ -309,6 +309,16 @@
     .ag-switch__track::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: var(--text); border-radius: 50%; transition: transform .15s; }
     .ag-switch input:checked + .ag-switch__track { background: var(--cyan); }
     .ag-switch input:checked + .ag-switch__track::before { transform: translateX(16px); }
+    .ag-horario-tabla { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .74rem; }
+    .ag-horario-tabla th { background: var(--bg3); color: var(--muted); font-weight: 700; padding: .5rem .4rem; border: 1px solid var(--border); text-align: center; white-space: nowrap; }
+    .ag-horario-tabla td { border: 1px solid var(--border); padding: .35rem; vertical-align: top; min-width: 92px; }
+    .ag-horario-materia { background: var(--bg3); color: var(--text); font-weight: 700; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
+    .ag-horario-celda { border-radius: 6px; padding: .3rem .4rem; cursor: pointer; line-height: 1.35; }
+    .ag-horario-celda:hover { filter: brightness(1.2); }
+    .ag-horario-celda__hora { font-weight: 700; display: block; color: var(--text); }
+    .ag-horario-celda__aula { opacity: .8; font-size: .68rem; color: var(--text); }
+    .ag-horario-leyenda-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; color: var(--text); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 20px; padding: .25rem .6rem; }
+    .ag-horario-leyenda-chip__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
     .ag-proyecto-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: .8rem; }
     .ag-proyecto-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
@@ -567,6 +577,21 @@
 
         <!-- VISTA ESTUDIO -->
         <div id="agVistaEstudio" style="display:none">
+
+          <div class="ag-fin-pie-card" style="margin-bottom:1.4rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem">
+              <p class="ag-section-label" style="margin:0">🗓️ Horario de cursada</p>
+              <div style="display:flex;gap:.5rem">
+                <button class="btn btn--sm" id="agBtnCategoriasHorario">⚙ Categorías</button>
+                <button class="btn btn--primary btn--sm" id="agBtnNuevoHorario">+ Agregar clase</button>
+              </div>
+            </div>
+            <div id="agHorarioLeyenda" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.9rem"></div>
+            <div style="overflow-x:auto">
+              <table class="ag-horario-tabla" id="agHorarioTabla"></table>
+            </div>
+            <p class="ag-empty" id="agHorarioEmpty" style="display:none;padding:1.4rem 0">Todavía no cargaste ninguna clase. Tocá "+ Agregar clase" para armar tu horario.</p>
+          </div>
 
           <div class="ag-estudio-examen-banner" id="agExamenBanner" style="display:none">
             <span id="agExamenBannerTexto"></span>
@@ -1166,6 +1191,76 @@
       <div style="display:flex;gap:.5rem">
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarFraseEntreno">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionFraseEntreno" style="display:none">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: nueva/editar clase del horario -->
+  <div class="modal-overlay" id="agModalHorario">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalHorario">✕</button>
+      <h2 class="modal__title" id="agModalHorarioTitulo">Nueva clase</h2>
+      <input type="hidden" id="agHorarioId"/>
+      <div class="form-group">
+        <label class="form-label">Materia</label>
+        <input type="text" id="agHorarioMateria" class="form-input" placeholder="Ej: Análisis y Diseño de Sistemas II"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Día</label>
+        <select id="agHorarioDia" class="form-input">
+          <option value="0">Lunes</option>
+          <option value="1">Martes</option>
+          <option value="2">Miércoles</option>
+          <option value="3">Jueves</option>
+          <option value="4">Viernes</option>
+          <option value="5">Sábado</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.6rem">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Desde</label>
+          <input type="time" id="agHorarioInicio" class="form-input"/>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Hasta</label>
+          <input type="time" id="agHorarioFin" class="form-input"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Aula / lugar (opcional)</label>
+        <input type="text" id="agHorarioAula" class="form-input" placeholder="Ej: Aula 12"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría</label>
+        <select id="agHorarioCategoria" class="form-input"><option value="">Sin categoría</option></select>
+      </div>
+      <p class="form-error" id="agHorarioError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarHorario">Guardar</button>
+        <button class="btn btn--danger" id="agBtnEliminarHorario" style="display:none">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: categorías de clases (teórica/práctica/etc) -->
+  <div class="modal-overlay" id="agModalCategoriasHorario">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalCategoriasHorario">✕</button>
+      <h2 class="modal__title">Categorías de clases</h2>
+      <div id="agCategoriasHorarioLista" style="margin-bottom:1.2rem"></div>
+      <input type="hidden" id="agCategoriaHorarioEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agCategoriaHorarioNombre" class="form-input" placeholder="Ej: Teórica"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <input type="color" id="agCategoriaHorarioColor" class="form-input" value="#159A9C" style="height:40px;padding:.2rem"/>
+      </div>
+      <p class="form-error" id="agCategoriaHorarioError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarCategoriaHorario">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionCategoriaHorario" style="display:none">Cancelar</button>
       </div>
     </div>
   </div>

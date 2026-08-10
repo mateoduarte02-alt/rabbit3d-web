@@ -1208,7 +1208,8 @@
 
   async function cargarEstudioTab() {
     if (!estudioCargado) { actualizarDisplayTimer(); estudioCargado = true }
-    await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones()])
+    await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones(), cargarCategoriasHorario()])
+    await cargarHorarios()
     renderResumenSemanal()
   }
 
@@ -3257,6 +3258,202 @@
   })
   document.getElementById('agBtnCerrarModalPestanas').addEventListener('click', () =>
     document.getElementById('agModalPestanas').classList.remove('activo'))
+
+  // ══════════════════════════════════════════
+  //  HORARIO DE CURSADA — grilla semanal arriba de Estudio, con clases
+  //  clasificadas por categoría propia (teórica/práctica/lo que sea),
+  //  cada una con su color.
+  // ══════════════════════════════════════════
+  let horarios = []
+  let categoriasHorario = []
+  const DIAS_HORARIO = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+  async function cargarCategoriasHorario() {
+    const { data, error } = await supabase.from('estudio_horario_categorias').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[horario] error al cargar categorías:', error); return }
+    categoriasHorario = data || []
+    renderSelectCategoriasHorario()
+  }
+
+  function renderSelectCategoriasHorario() {
+    const sel = document.getElementById('agHorarioCategoria')
+    const actual = sel.value
+    sel.innerHTML = '<option value="">Sin categoría</option>' + categoriasHorario.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')
+    sel.value = actual
+  }
+
+  async function cargarHorarios() {
+    const { data, error } = await supabase.from('estudio_horarios').select('*').order('dia', { ascending: true }).order('hora_inicio', { ascending: true })
+    if (error) { console.error('[horario] error al cargar horarios:', error); return }
+    horarios = data || []
+    renderHorarioTabla()
+    renderHorarioLeyenda()
+  }
+
+  function renderHorarioLeyenda() {
+    const cont = document.getElementById('agHorarioLeyenda')
+    cont.innerHTML = categoriasHorario.map(c =>
+      `<span class="ag-horario-leyenda-chip"><span class="ag-horario-leyenda-chip__dot" style="background:${c.color}"></span>${c.nombre}</span>`
+    ).join('')
+  }
+
+  function renderHorarioTabla() {
+    const tabla = document.getElementById('agHorarioTabla')
+    const empty = document.getElementById('agHorarioEmpty')
+    if (!horarios.length) { tabla.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+
+    // Una fila por materia, en el orden en que aparece su primera clase
+    const materias = [...new Set(horarios.map(h => h.materia))]
+    const porCelda = {}
+    horarios.forEach(h => { (porCelda[h.materia + '|' + h.dia] = porCelda[h.materia + '|' + h.dia] || []).push(h) })
+    const catPorId = Object.fromEntries(categoriasHorario.map(c => [c.id, c]))
+
+    const headerHtml = '<tr><th></th>' + DIAS_HORARIO.map(d => `<th>${d}</th>`).join('') + '</tr>'
+    const filasHtml = materias.map(m => {
+      const celdas = DIAS_HORARIO.map((_, dia) => {
+        const items = porCelda[m + '|' + dia] || []
+        if (!items.length) return '<td></td>'
+        const contenido = items.map(h => {
+          const cat = catPorId[h.categoria_id]
+          const bg = cat ? cat.color + '30' : 'rgba(255,255,255,.05)'
+          const borde = cat ? cat.color : 'var(--border)'
+          return `<div class="ag-horario-celda" style="background:${bg};border:1px solid ${borde}" onclick="window._agEditarHorario(${h.id})">
+            <span class="ag-horario-celda__hora">${h.hora_inicio} a ${h.hora_fin}</span>
+            ${h.aula ? `<span class="ag-horario-celda__aula">${h.aula}</span>` : ''}
+          </div>`
+        }).join('')
+        return `<td>${contenido}</td>`
+      }).join('')
+      return `<tr><td class="ag-horario-materia">${m}</td>${celdas}</tr>`
+    }).join('')
+
+    tabla.innerHTML = headerHtml + filasHtml
+  }
+
+  function abrirModalHorario(id) {
+    const h = id ? horarios.find(x => x.id === id) : null
+    document.getElementById('agModalHorarioTitulo').textContent = h ? 'Editar clase' : 'Nueva clase'
+    document.getElementById('agHorarioId').value = h ? h.id : ''
+    document.getElementById('agHorarioMateria').value = h ? h.materia : ''
+    document.getElementById('agHorarioDia').value = h ? h.dia : '0'
+    document.getElementById('agHorarioInicio').value = h ? h.hora_inicio : ''
+    document.getElementById('agHorarioFin').value = h ? h.hora_fin : ''
+    document.getElementById('agHorarioAula').value = h ? (h.aula || '') : ''
+    document.getElementById('agHorarioCategoria').value = h && h.categoria_id ? h.categoria_id : ''
+    document.getElementById('agHorarioError').textContent = ''
+    document.getElementById('agBtnEliminarHorario').style.display = h ? 'inline-flex' : 'none'
+    document.getElementById('agModalHorario').classList.add('activo')
+  }
+  document.getElementById('agBtnNuevoHorario').addEventListener('click', () => abrirModalHorario(null))
+  window._agEditarHorario = id => abrirModalHorario(id)
+  document.getElementById('agBtnCerrarModalHorario').addEventListener('click', () => document.getElementById('agModalHorario').classList.remove('activo'))
+
+  document.getElementById('agBtnGuardarHorario').addEventListener('click', async () => {
+    const errEl = document.getElementById('agHorarioError')
+    errEl.textContent = ''
+    const id = document.getElementById('agHorarioId').value
+    const datos = {
+      materia: document.getElementById('agHorarioMateria').value.trim(),
+      dia: parseInt(document.getElementById('agHorarioDia').value),
+      hora_inicio: document.getElementById('agHorarioInicio').value,
+      hora_fin: document.getElementById('agHorarioFin').value,
+      aula: document.getElementById('agHorarioAula').value.trim() || null,
+      categoria_id: document.getElementById('agHorarioCategoria').value || null,
+    }
+    if (!datos.materia) { errEl.textContent = 'La materia es obligatoria.'; return }
+    if (!datos.hora_inicio || !datos.hora_fin) { errEl.textContent = 'Completá el horario de inicio y de fin.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('estudio_horarios').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('estudio_horarios').insert([datos]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    document.getElementById('agModalHorario').classList.remove('activo')
+    await cargarHorarios()
+  })
+
+  document.getElementById('agBtnEliminarHorario').addEventListener('click', async () => {
+    const id = document.getElementById('agHorarioId').value
+    if (!id || !confirm('¿Eliminar esta clase del horario?')) return
+    const { error } = await supabase.from('estudio_horarios').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    document.getElementById('agModalHorario').classList.remove('activo')
+    await cargarHorarios()
+  })
+
+  // ── Categorías de clases (teórica/práctica/lo que sea) ──────────────
+  function renderCategoriasHorarioLista() {
+    const cont = document.getElementById('agCategoriasHorarioLista')
+    if (!categoriasHorario.length) { cont.innerHTML = '<p class="ag-empty" style="padding:.6rem 0">Todavía no creaste ninguna categoría.</p>'; return }
+    cont.innerHTML = categoriasHorario.map(c => `
+      <div class="ag-entreno-meta-fila">
+        <span class="ag-entreno-meta-fila__color" style="background:${c.color}"></span>
+        <span class="ag-entreno-meta-fila__nombre">${c.nombre}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarCategoriaHorario(${c.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarCategoriaHorario(${c.id})">🗑</button>
+      </div>`).join('')
+  }
+
+  function resetFormCategoriaHorario() {
+    document.getElementById('agCategoriaHorarioEditId').value = ''
+    document.getElementById('agCategoriaHorarioNombre').value = ''
+    document.getElementById('agCategoriaHorarioColor').value = '#159A9C'
+    document.getElementById('agCategoriaHorarioError').textContent = ''
+    document.getElementById('agBtnGuardarCategoriaHorario').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionCategoriaHorario').style.display = 'none'
+  }
+
+  window._agEditarCategoriaHorario = function (id) {
+    const c = categoriasHorario.find(x => x.id === id)
+    if (!c) return
+    document.getElementById('agCategoriaHorarioEditId').value = c.id
+    document.getElementById('agCategoriaHorarioNombre').value = c.nombre
+    document.getElementById('agCategoriaHorarioColor').value = c.color
+    document.getElementById('agBtnGuardarCategoriaHorario').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionCategoriaHorario').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionCategoriaHorario').addEventListener('click', resetFormCategoriaHorario)
+
+  window._agEliminarCategoriaHorario = async function (id) {
+    if (!confirm('¿Eliminar esta categoría? Las clases que la tenían asignada quedan sin categoría (no se borran).')) return
+    const { error } = await supabase.from('estudio_horario_categorias').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarCategoriasHorario()
+    renderCategoriasHorarioLista()
+    await cargarHorarios()
+  }
+
+  document.getElementById('agBtnGuardarCategoriaHorario').addEventListener('click', async () => {
+    const errEl = document.getElementById('agCategoriaHorarioError')
+    errEl.textContent = ''
+    const id = document.getElementById('agCategoriaHorarioEditId').value
+    const datos = {
+      nombre: document.getElementById('agCategoriaHorarioNombre').value.trim(),
+      color: document.getElementById('agCategoriaHorarioColor').value,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('estudio_horario_categorias').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('estudio_horario_categorias').insert([{ ...datos, orden: categoriasHorario.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarCategoriasHorario()
+    renderCategoriasHorarioLista()
+    resetFormCategoriaHorario()
+    await cargarHorarios()
+  })
+
+  document.getElementById('agBtnCategoriasHorario').addEventListener('click', () => {
+    renderCategoriasHorarioLista()
+    resetFormCategoriaHorario()
+    document.getElementById('agModalCategoriasHorario').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalCategoriasHorario').addEventListener('click', () =>
+    document.getElementById('agModalCategoriasHorario').classList.remove('activo'))
 
   // ══════════════════════════════════════════
   //  INIT
