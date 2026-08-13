@@ -1208,7 +1208,7 @@
 
   async function cargarEstudioTab() {
     if (!estudioCargado) { actualizarDisplayTimer(); estudioCargado = true }
-    await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones(), cargarCategoriasHorario()])
+    await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones(), cargarCategoriasHorario(), cargarOrdenMateriasHorario()])
     await cargarHorarios()
     renderResumenSemanal()
   }
@@ -3266,6 +3266,7 @@
   // ══════════════════════════════════════════
   let horarios = []
   let categoriasHorario = []
+  let ordenMateriasHorario = []  // nombres de materia en el orden preferido; las nuevas van al final
   const DIAS_HORARIO = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
   async function cargarCategoriasHorario() {
@@ -3280,6 +3281,39 @@
     const actual = sel.value
     sel.innerHTML = '<option value="">Sin categoría</option>' + categoriasHorario.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')
     sel.value = actual
+  }
+
+  async function cargarOrdenMateriasHorario() {
+    const { data, error } = await supabase.from('agenda_config').select('valor').eq('clave', 'estudio_horario_orden_materias').maybeSingle()
+    if (error) { console.error('[horario] error al cargar orden de materias:', error); return }
+    ordenMateriasHorario = (data && Array.isArray(data.valor)) ? data.valor : []
+  }
+
+  async function guardarOrdenMateriasHorario() {
+    const { error } = await supabase.from('agenda_config').upsert([{ clave: 'estudio_horario_orden_materias', valor: ordenMateriasHorario }], { onConflict: 'clave' })
+    if (error) console.error('[horario] error al guardar orden de materias:', error)
+  }
+
+  function materiasOrdenadas() {
+    // Orden de aparición natural (primera vez que se ve cada materia en los horarios)
+    const natural = [...new Set(horarios.map(h => h.materia))]
+    // Las que ya están en ordenMateriasHorario van primero, en ese orden; el resto
+    // (materias nuevas que todavía no se reordenaron a mano) van al final, en su
+    // orden natural.
+    const conocidas = ordenMateriasHorario.filter(m => natural.includes(m))
+    const nuevas = natural.filter(m => !ordenMateriasHorario.includes(m))
+    return [...conocidas, ...nuevas]
+  }
+
+  window._agMoverMateriaHorario = async function (materia, direccion) {
+    let orden = materiasOrdenadas()
+    const i = orden.indexOf(materia)
+    const j = i + direccion
+    if (i < 0 || j < 0 || j >= orden.length) return
+    ;[orden[i], orden[j]] = [orden[j], orden[i]]
+    ordenMateriasHorario = orden
+    renderHorarioTabla()
+    await guardarOrdenMateriasHorario()
   }
 
   async function cargarHorarios() {
@@ -3303,14 +3337,14 @@
     if (!horarios.length) { tabla.innerHTML = ''; empty.style.display = 'block'; return }
     empty.style.display = 'none'
 
-    // Una fila por materia, en el orden en que aparece su primera clase
-    const materias = [...new Set(horarios.map(h => h.materia))]
+    // Una fila por materia, en el orden guardado (reordenable con las flechas)
+    const materias = materiasOrdenadas()
     const porCelda = {}
     horarios.forEach(h => { (porCelda[h.materia + '|' + h.dia] = porCelda[h.materia + '|' + h.dia] || []).push(h) })
     const catPorId = Object.fromEntries(categoriasHorario.map(c => [c.id, c]))
 
     const headerHtml = '<tr><th></th>' + DIAS_HORARIO.map(d => `<th>${d}</th>`).join('') + '</tr>'
-    const filasHtml = materias.map(m => {
+    const filasHtml = materias.map((m, i) => {
       const celdas = DIAS_HORARIO.map((_, dia) => {
         const items = porCelda[m + '|' + dia] || []
         if (!items.length) return '<td></td>'
@@ -3325,7 +3359,16 @@
         }).join('')
         return `<td>${contenido}</td>`
       }).join('')
-      return `<tr><td class="ag-horario-materia">${m}</td>${celdas}</tr>`
+      const materiaEscapada = m.replace(/'/g, "\\'")
+      return `<tr><td class="ag-horario-materia">
+          <div class="ag-horario-materia__fila">
+            <span>${m}</span>
+            <span class="ag-horario-materia__flechas">
+              <button ${i === 0 ? 'disabled' : ''} title="Subir" onclick="window._agMoverMateriaHorario('${materiaEscapada}', -1)">▲</button>
+              <button ${i === materias.length - 1 ? 'disabled' : ''} title="Bajar" onclick="window._agMoverMateriaHorario('${materiaEscapada}', 1)">▼</button>
+            </span>
+          </div>
+        </td>${celdas}</tr>`
     }).join('')
 
     tabla.innerHTML = headerHtml + filasHtml

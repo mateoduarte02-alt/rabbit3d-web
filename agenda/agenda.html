@@ -313,6 +313,11 @@
     .ag-horario-tabla th { background: var(--bg3); color: var(--muted); font-weight: 700; padding: .5rem .4rem; border: 1px solid var(--border); text-align: center; white-space: nowrap; }
     .ag-horario-tabla td { border: 1px solid var(--border); padding: .35rem; vertical-align: top; min-width: 92px; }
     .ag-horario-materia { background: var(--bg3); color: var(--text); font-weight: 700; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
+    .ag-horario-materia__fila { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+    .ag-horario-materia__flechas { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+    .ag-horario-materia__flechas button { background: none; border: none; color: var(--muted); font-size: .58rem; line-height: 1; cursor: pointer; padding: .12rem; }
+    .ag-horario-materia__flechas button:hover:not(:disabled) { color: var(--cyan); }
+    .ag-horario-materia__flechas button:disabled { opacity: .25; cursor: default; }
     .ag-horario-celda { border-radius: 6px; padding: .3rem .4rem; cursor: pointer; line-height: 1.35; }
     .ag-horario-celda:hover { filter: brightness(1.2); }
     .ag-horario-celda__hora { font-weight: 700; display: block; color: var(--text); }
