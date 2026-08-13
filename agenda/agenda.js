@@ -3343,7 +3343,7 @@
     horarios.forEach(h => { (porCelda[h.materia + '|' + h.dia] = porCelda[h.materia + '|' + h.dia] || []).push(h) })
     const catPorId = Object.fromEntries(categoriasHorario.map(c => [c.id, c]))
 
-    const headerHtml = '<tr><th></th>' + DIAS_HORARIO.map(d => `<th>${d}</th>`).join('') + '</tr>'
+    const headerHtml = '<tr><th></th>' + DIAS_HORARIO.map(d => `<th>${d.slice(0, 3)}</th>`).join('') + '</tr>'
     const filasHtml = materias.map((m, i) => {
       const celdas = DIAS_HORARIO.map((_, dia) => {
         const items = porCelda[m + '|' + dia] || []
@@ -3353,7 +3353,8 @@
           const bg = cat ? cat.color + '30' : 'rgba(255,255,255,.05)'
           const borde = cat ? cat.color : 'var(--border)'
           return `<div class="ag-horario-celda" style="background:${bg};border:1px solid ${borde}" onclick="window._agEditarHorario(${h.id})">
-            <span class="ag-horario-celda__hora">${h.hora_inicio} a ${h.hora_fin}</span>
+            <span class="ag-horario-celda__hora">${h.hora_inicio}</span>
+            <span class="ag-horario-celda__hora">${h.hora_fin}</span>
             ${h.aula ? `<span class="ag-horario-celda__aula">${h.aula}</span>` : ''}
           </div>`
         }).join('')

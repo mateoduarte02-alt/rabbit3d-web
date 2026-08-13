@@ -309,21 +309,31 @@
     .ag-switch__track::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: var(--text); border-radius: 50%; transition: transform .15s; }
     .ag-switch input:checked + .ag-switch__track { background: var(--cyan); }
     .ag-switch input:checked + .ag-switch__track::before { transform: translateX(16px); }
-    .ag-horario-tabla { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .74rem; }
-    .ag-horario-tabla th { background: var(--bg3); color: var(--muted); font-weight: 700; padding: .5rem .4rem; border: 1px solid var(--border); text-align: center; white-space: nowrap; }
-    .ag-horario-tabla td { border: 1px solid var(--border); padding: .35rem; vertical-align: top; min-width: 92px; }
-    .ag-horario-materia { background: var(--bg3); color: var(--text); font-weight: 700; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
-    .ag-horario-materia__fila { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+    .ag-horario-tabla { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: .68rem; }
+    .ag-horario-tabla th { background: var(--bg3); color: var(--muted); font-weight: 700; padding: .3rem .15rem; border: 1px solid var(--border); text-align: center; }
+    .ag-horario-tabla th:first-child { width: 22%; }
+    .ag-horario-tabla td { border: 1px solid var(--border); padding: .2rem; vertical-align: top; overflow: hidden; }
+    .ag-horario-materia { background: var(--bg3); color: var(--text); font-weight: 700; font-size: .66rem; line-height: 1.25; word-break: break-word; }
+    .ag-horario-materia__fila { display: flex; align-items: flex-start; gap: .2rem; justify-content: space-between; }
     .ag-horario-materia__flechas { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
-    .ag-horario-materia__flechas button { background: none; border: none; color: var(--muted); font-size: .58rem; line-height: 1; cursor: pointer; padding: .12rem; }
+    .ag-horario-materia__flechas button { background: none; border: none; color: var(--muted); font-size: .5rem; line-height: 1; cursor: pointer; padding: .1rem; }
     .ag-horario-materia__flechas button:hover:not(:disabled) { color: var(--cyan); }
     .ag-horario-materia__flechas button:disabled { opacity: .25; cursor: default; }
-    .ag-horario-celda { border-radius: 6px; padding: .3rem .4rem; cursor: pointer; line-height: 1.35; }
+    .ag-horario-celda { border-radius: 5px; padding: .18rem .22rem; cursor: pointer; line-height: 1.2; overflow: hidden; }
     .ag-horario-celda:hover { filter: brightness(1.2); }
-    .ag-horario-celda__hora { font-weight: 700; display: block; color: var(--text); }
-    .ag-horario-celda__aula { opacity: .8; font-size: .68rem; color: var(--text); }
+    .ag-horario-celda__hora { font-weight: 700; display: block; color: var(--text); font-size: .62rem; }
+    .ag-horario-celda__aula { opacity: .8; font-size: .58rem; color: var(--text); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ag-horario-leyenda-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; color: var(--text); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 20px; padding: .25rem .6rem; }
     .ag-horario-leyenda-chip__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    @media (min-width: 700px) {
+      .ag-horario-tabla { font-size: .74rem; }
+      .ag-horario-tabla th { padding: .5rem .4rem; }
+      .ag-horario-tabla td { padding: .35rem; }
+      .ag-horario-materia { font-size: .84rem; }
+      .ag-horario-celda { padding: .3rem .4rem; }
+      .ag-horario-celda__hora { font-size: .74rem; }
+      .ag-horario-celda__aula { font-size: .68rem; white-space: normal; }
+    }
 
     .ag-proyecto-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: .8rem; }
     .ag-proyecto-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
