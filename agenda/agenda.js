@@ -305,7 +305,10 @@
     document.getElementById('agVistaHuevos').style.display = vistaActual === 'huevos' ? 'block' : 'none'
     if (vistaActual === 'calendario') renderCalendario()
     if (vistaActual === 'carpetas') { cargarCarpetas(); cargarCorcho() }
-    if (vistaActual === 'finanzas') { Promise.all([cargarCategoriasFin(), cargarBilleterasFin()]).then(cargarFinanzas) }
+    if (vistaActual === 'finanzas') {
+      Promise.all([cargarCategoriasFin(), cargarBilleterasFin(), cargarCotizacionDolar(), cargarInversiones()])
+        .then(() => { renderInversionesStats(); cargarFinanzas() })
+    }
     if (vistaActual === 'estudio') cargarEstudioTab()
     if (vistaActual === 'pantalla') cargarPantallaTab()
     if (vistaActual === 'proyectos') cargarProyectos()
@@ -748,6 +751,11 @@
     return '$' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
   }
 
+  function fmtMontoMoneda(n, moneda) {
+    const num = Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+    return moneda === 'USD' ? 'US$' + num : '$' + num
+  }
+
   function rangoPeriodo(periodo) {
     const hoy = new Date()
     if (periodo === 'mes') {
@@ -927,10 +935,36 @@
     if (!btn) return
     movModalNaturaleza = btn.dataset.nat
     document.querySelectorAll('#agMovNaturaleza .ag-pago-btn').forEach(b => b.classList.remove('activo-pagado','activo-pendiente'))
-    btn.classList.add(movModalNaturaleza === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
-    document.getElementById('agMovReembolsoWrap').style.display = movModalNaturaleza === 'ingreso' ? 'block' : 'none'
+    btn.classList.add(movModalNaturaleza === 'gasto' ? 'activo-pendiente' : 'activo-pagado')
+    aplicarVisibilidadNaturalezaMov()
     if (movModalNaturaleza === 'ingreso') poblarSelectReembolso()
-    renderMovCategoriaSelect(null)
+    if (movModalNaturaleza !== 'ahorro') renderMovCategoriaSelect(null)
+  })
+
+  function aplicarVisibilidadNaturalezaMov() {
+    const esAhorro = movModalNaturaleza === 'ahorro'
+    document.getElementById('agMovReembolsoWrap').style.display = (movModalNaturaleza === 'ingreso') ? 'block' : 'none'
+    document.getElementById('agMovAhorroTipoWrap').style.display = esAhorro ? 'block' : 'none'
+    document.getElementById('agMovAhorroMonedaWrap').style.display = esAhorro ? 'block' : 'none'
+    document.getElementById('agMovCategoriaWrap').style.display = esAhorro ? 'none' : 'block'
+    document.getElementById('agMovBilleteraWrap').style.display = esAhorro ? 'none' : 'block'
+  }
+
+  let movModalAhorroTipo = 'aporte'
+  document.getElementById('agMovAhorroTipoToggle').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agMovAhorroTipoToggle .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    movModalAhorroTipo = btn.dataset.tipo
+  })
+  let movModalAhorroMoneda = 'ARS'
+  document.getElementById('agMovAhorroMonedaToggle').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agMovAhorroMonedaToggle .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    movModalAhorroMoneda = btn.dataset.moneda
   })
 
   let movModalCategoriaId = null
@@ -969,9 +1003,13 @@
     movModalNaturaleza = m ? m.naturaleza : 'ingreso'
     document.querySelectorAll('#agMovNaturaleza .ag-pago-btn').forEach(b => {
       b.classList.remove('activo-pagado','activo-pendiente')
-      if (b.dataset.nat === movModalNaturaleza) b.classList.add(movModalNaturaleza === 'ingreso' ? 'activo-pagado' : 'activo-pendiente')
+      if (b.dataset.nat === movModalNaturaleza) b.classList.add(movModalNaturaleza === 'gasto' ? 'activo-pendiente' : 'activo-pagado')
     })
-    document.getElementById('agMovReembolsoWrap').style.display = movModalNaturaleza === 'ingreso' ? 'block' : 'none'
+    movModalAhorroTipo = 'aporte'
+    movModalAhorroMoneda = 'ARS'
+    document.querySelectorAll('#agMovAhorroTipoToggle .ag-fin-periodo__btn').forEach(b => b.classList.toggle('activo', b.dataset.tipo === 'aporte'))
+    document.querySelectorAll('#agMovAhorroMonedaToggle .ag-fin-periodo__btn').forEach(b => b.classList.toggle('activo', b.dataset.moneda === 'ARS'))
+    aplicarVisibilidadNaturalezaMov()
     renderMovCategoriaSelect(m ? m.categoria_id : null)
     renderMovBilleteraSelect(m ? m.billetera_id : null)
     document.getElementById('agMovMonto').value = m ? m.monto : ''
@@ -996,17 +1034,43 @@
 
   document.getElementById('agBtnGuardarMov').addEventListener('click', async () => {
     const errEl = document.getElementById('agMovError')
+    errEl.textContent = ''
     const id = document.getElementById('agMovId').value
     const monto = parseFloat(document.getElementById('agMovMonto').value)
-    if (!movModalCategoriaId) { errEl.textContent = 'Elegí una categoría.'; return }
     if (!monto || monto <= 0) { errEl.textContent = 'Ingresá un monto válido.'; return }
+    const fecha = document.getElementById('agMovFecha').value || hoyISO()
+
+    // ── Ahorro: va a su propia tabla, no a finanzas_movimientos ──
+    if (movModalNaturaleza === 'ahorro') {
+      if (movModalAhorroTipo === 'retiro') {
+        const disponible = balanceAhorro(movModalAhorroMoneda)
+        if (monto > disponible) {
+          errEl.textContent = `Ese retiro es mayor a lo que tenés ahorrado en ${movModalAhorroMoneda === 'USD' ? 'dólares' : 'pesos'} (${fmtMontoMoneda(disponible, movModalAhorroMoneda)}).`
+          return
+        }
+      }
+      const { error } = await supabase.from('finanzas_inversiones').insert([{
+        tipo: movModalAhorroTipo,
+        monto,
+        moneda: movModalAhorroMoneda,
+        fecha,
+        nota: document.getElementById('agMovDesc').value.trim() || null,
+      }])
+      if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+      document.getElementById('agModalMov').classList.remove('activo')
+      await cargarInversiones()
+      return
+    }
+
+    // ── Ingreso / Gasto: como siempre ──
+    if (!movModalCategoriaId) { errEl.textContent = 'Elegí una categoría.'; return }
     const datos = {
       categoria_id: movModalCategoriaId,
       billetera_id: movModalBilleteraId,
       naturaleza: movModalNaturaleza,
       monto,
       descripcion: document.getElementById('agMovDesc').value.trim(),
-      fecha: document.getElementById('agMovFecha').value || hoyISO(),
+      fecha,
       monto_a_cobrar: null,
       monto_cobrado: 0,
       gasto_relacionado_id: (movModalNaturaleza === 'ingreso' && document.getElementById('agMovReembolsoSelect').value)
@@ -1024,9 +1088,37 @@
   })
 
   window._agEliminarMov = async function (id) {
-    if (!confirm('¿Eliminar este movimiento?')) return
+    // Antes de borrar, chequeamos en la base (no solo en lo que está cargado en
+    // pantalla, porque el período visible puede no incluir el reintegro) si hay
+    // algún ingreso vinculado a este gasto — si lo hay y no lo sacamos de en
+    // medio primero, el borrado revienta contra la foreign key.
+    const { data: vinculados, error: errBusqueda } = await supabase
+      .from('finanzas_movimientos').select('id, descripcion').eq('gasto_relacionado_id', id)
+    if (errBusqueda) { alert('Error: ' + errBusqueda.message); return }
+
+    if (vinculados && vinculados.length > 0) {
+      const lista = vinculados.map(m => `• ${m.descripcion || 'ingreso sin descripción'}`).join('\n')
+      const tambienBorrar = confirm(
+        `Este gasto tiene ${vinculados.length} reintegro${vinculados.length > 1 ? 's' : ''} vinculado${vinculados.length > 1 ? 's' : ''}:\n${lista}\n\n` +
+        `Aceptar: borra el gasto Y ese/esos reintegro/s también.\n` +
+        `Cancelar: no se borra nada.`
+      )
+      if (!tambienBorrar) return
+      const { error: errVinc } = await supabase.from('finanzas_movimientos').delete().in('id', vinculados.map(m => m.id))
+      if (errVinc) { alert('Error al borrar los reintegros vinculados: ' + errVinc.message); return }
+    } else if (!confirm('¿Eliminar este movimiento?')) {
+      return
+    }
+
     const { error } = await supabase.from('finanzas_movimientos').delete().eq('id', id)
-    if (error) { alert('Error: ' + error.message); return }
+    if (error) {
+      if (error.code === '23503') {
+        alert('No se pudo borrar: este movimiento sigue vinculado a otro (un reintegro). Recargá la página y probá de nuevo.')
+      } else {
+        alert('Error: ' + error.message)
+      }
+      return
+    }
     await cargarFinanzas()
   }
 
@@ -3498,6 +3590,136 @@
   })
   document.getElementById('agBtnCerrarModalCategoriasHorario').addEventListener('click', () =>
     document.getElementById('agModalCategoriasHorario').classList.remove('activo'))
+
+  // ══════════════════════════════════════════
+  //  INVERSIONES — aportes y retiros de la plata que se pone a invertir.
+  //  Vive en tabla propia (finanzas_inversiones), separada de
+  //  finanzas_movimientos, así queda automáticamente afuera del gráfico
+  //  de gastos y del balance de ingresos/gastos de arriba.
+  // ══════════════════════════════════════════
+  let inversiones = []
+  let cotizacionDolar = null
+
+  async function cargarCotizacionDolar() {
+    const { data, error } = await supabase.from('agenda_config').select('valor').eq('clave', 'dolar_cotizacion').maybeSingle()
+    if (error) { console.error('[ahorros] error al cargar cotización:', error); return }
+    cotizacionDolar = (data && typeof data.valor === 'number') ? data.valor : null
+    document.getElementById('agInvDolarValor').textContent = cotizacionDolar ? fmtMonto(cotizacionDolar) : 'sin cargar'
+  }
+
+  document.getElementById('agBtnEditarDolar').addEventListener('click', () => {
+    document.getElementById('agInvDolarValor').style.display = 'none'
+    document.getElementById('agBtnEditarDolar').style.display = 'none'
+    const input = document.getElementById('agInvDolarInput')
+    input.value = cotizacionDolar || ''
+    input.style.display = 'inline-block'
+    document.getElementById('agBtnGuardarDolar').style.display = 'inline-flex'
+    input.focus()
+  })
+
+  document.getElementById('agBtnGuardarDolar').addEventListener('click', async () => {
+    const input = document.getElementById('agInvDolarInput')
+    const valor = Number(input.value)
+    if (!valor || valor <= 0) { alert('Ingresá un valor válido para el dólar.'); return }
+    const { error } = await supabase.from('agenda_config').upsert([{ clave: 'dolar_cotizacion', valor }], { onConflict: 'clave' })
+    if (error) { alert('Error al guardar: ' + error.message); return }
+    cotizacionDolar = valor
+    document.getElementById('agInvDolarValor').textContent = fmtMonto(cotizacionDolar)
+    document.getElementById('agInvDolarValor').style.display = 'inline'
+    document.getElementById('agBtnEditarDolar').style.display = 'inline-flex'
+    input.style.display = 'none'
+    document.getElementById('agBtnGuardarDolar').style.display = 'none'
+    renderInversionesStats()
+  })
+
+  async function cargarInversiones() {
+    const { data, error } = await supabase.from('finanzas_inversiones').select('*').order('fecha', { ascending: false }).order('id', { ascending: false })
+    if (error) { console.error('[ahorros] error al cargar:', error); return }
+    inversiones = data || []
+    renderInversionesStats()
+    renderInversionesGrafico()
+    renderInversionesLista()
+  }
+
+  function balanceAhorro(moneda) {
+    const de = inversiones.filter(i => (i.moneda || 'ARS') === moneda)
+    const aportado = de.filter(i => i.tipo === 'aporte').reduce((a, i) => a + Number(i.monto), 0)
+    const retirado = de.filter(i => i.tipo === 'retiro').reduce((a, i) => a + Number(i.monto), 0)
+    return aportado - retirado
+  }
+
+  function renderInversionesStats() {
+    const balArs = balanceAhorro('ARS')
+    const balUsd = balanceAhorro('USD')
+    document.getElementById('agInvBalanceARS').textContent = fmtMontoMoneda(balArs, 'ARS')
+    document.getElementById('agInvBalanceUSD').textContent = fmtMontoMoneda(balUsd, 'USD')
+
+    const equivEl = document.getElementById('agInvBalanceUSDenPesos')
+    const totalEl = document.getElementById('agInvTotalPesos')
+    if (cotizacionDolar) {
+      const usdEnPesos = balUsd * cotizacionDolar
+      equivEl.textContent = `≈ ${fmtMonto(usdEnPesos)}`
+      totalEl.textContent = fmtMonto(balArs + usdEnPesos)
+    } else {
+      equivEl.textContent = 'Cargá la cotización del dólar (✎) para verlo en pesos'
+      totalEl.textContent = '—'
+    }
+  }
+
+  function renderInversionesLista() {
+    const cont = document.getElementById('agInvLista')
+    const empty = document.getElementById('agInvEmpty')
+    if (!inversiones.length) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+    cont.innerHTML = inversiones.map(i => {
+      const [y, m, d] = i.fecha.split('-')
+      const esAporte = i.tipo === 'aporte'
+      const moneda = i.moneda || 'ARS'
+      return `
+        <div class="ag-inv-fila">
+          <span class="ag-inv-fila__icono">${esAporte ? '⬆️' : '⬇️'}</span>
+          <div class="ag-inv-fila__info">
+            <div class="ag-inv-fila__nota">${i.nota || (esAporte ? 'Aporte' : 'Retiro')} <span class="ag-inv-fila__moneda">${moneda === 'USD' ? 'USD' : 'ARS'}</span></div>
+            <div class="ag-inv-fila__fecha">${d}/${m}/${y}</div>
+          </div>
+          <span class="ag-inv-fila__monto ag-inv-fila__monto--${i.tipo}">${esAporte ? '+' : '−'}${fmtMontoMoneda(i.monto, moneda)}</span>
+          <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarInv(${i.id})">🗑</button>
+        </div>`
+    }).join('')
+  }
+
+  function renderInversionesGrafico() {
+    const cont = document.getElementById('agInvGrafico')
+    const bloques = ['ARS', 'USD'].map(mon => {
+      const de = inversiones.filter(i => (i.moneda || 'ARS') === mon)
+      const aportado = de.filter(i => i.tipo === 'aporte').reduce((a, i) => a + Number(i.monto), 0)
+      const retirado = de.filter(i => i.tipo === 'retiro').reduce((a, i) => a + Number(i.monto), 0)
+      if (!aportado && !retirado) return ''
+      const max = Math.max(aportado, retirado, 1)
+      return `
+        <div class="ag-inv-grafico__moneda">
+          <p class="ag-inv-grafico__label">${mon === 'USD' ? 'Dólares' : 'Pesos'}</p>
+          <div class="ag-inv-bar-row">
+            <span class="ag-inv-bar-row__tag">Aportado</span>
+            <div class="ag-storage-bar"><div class="ag-storage-bar__fill" style="width:${(aportado / max * 100).toFixed(0)}%;background:#4ecca3"></div></div>
+            <span class="ag-inv-bar-row__val">${fmtMontoMoneda(aportado, mon)}</span>
+          </div>
+          <div class="ag-inv-bar-row">
+            <span class="ag-inv-bar-row__tag">Retirado</span>
+            <div class="ag-storage-bar"><div class="ag-storage-bar__fill" style="width:${(retirado / max * 100).toFixed(0)}%;background:#d94060"></div></div>
+            <span class="ag-inv-bar-row__val">${fmtMontoMoneda(retirado, mon)}</span>
+          </div>
+        </div>`
+    }).filter(Boolean).join('')
+    cont.innerHTML = bloques
+  }
+
+  window._agEliminarInv = async function (id) {
+    if (!confirm('¿Eliminar este movimiento de ahorro?')) return
+    const { error } = await supabase.from('finanzas_inversiones').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarInversiones()
+  }
 
   // ══════════════════════════════════════════
   //  INIT

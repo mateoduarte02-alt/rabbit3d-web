@@ -325,6 +325,29 @@
     .ag-horario-celda__aula { opacity: .8; font-size: .58rem; color: var(--text); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ag-horario-leyenda-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; color: var(--text); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 20px; padding: .25rem .6rem; }
     .ag-horario-leyenda-chip__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .ag-inv-fila { display: flex; align-items: center; gap: .7rem; padding: .55rem .2rem; border-bottom: 1px solid var(--border); font-size: .8rem; }
+    .ag-inv-fila:last-child { border-bottom: none; }
+    .ag-inv-fila__icono { flex-shrink: 0; }
+    .ag-inv-fila__info { flex: 1; min-width: 0; }
+    .ag-inv-fila__nota { color: var(--text); font-weight: 600; }
+    .ag-inv-fila__moneda { font-size: .6rem; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .3rem; margin-left: .3rem; font-weight: 600; }
+    .ag-inv-grafico__moneda { margin-bottom: 1rem; }
+    .ag-inv-grafico__moneda:last-child { margin-bottom: 0; }
+    .ag-inv-grafico__label { font-size: .74rem; font-weight: 700; color: var(--text); margin: 0 0 .5rem; }
+    .ag-inv-bar-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+    .ag-inv-bar-row:last-child { margin-bottom: 0; }
+    .ag-inv-bar-row__tag { font-size: .68rem; color: var(--muted); width: 56px; flex-shrink: 0; }
+    .ag-inv-bar-row .ag-storage-bar { flex: 1; }
+    .ag-inv-bar-row__val { font-size: .7rem; color: var(--text); font-weight: 600; width: 84px; flex-shrink: 0; text-align: right; }
+    .ag-inv-dolar { display: flex; align-items: center; gap: .4rem; font-size: .74rem; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 8px; padding: .3rem .5rem; }
+    .ag-inv-dolar__label { color: var(--muted); }
+    .ag-inv-dolar__valor { color: var(--cyan); font-weight: 700; }
+    .ag-inv-dolar__input { width: 90px; padding: .3rem .5rem; font-size: .78rem; }
+    .ag-inv-dolar-equiv { font-size: .66rem; color: var(--muted); margin: .1rem 0 0; }
+    .ag-inv-fila__fecha { color: var(--muted); font-size: .7rem; }
+    .ag-inv-fila__monto { font-weight: 700; flex-shrink: 0; }
+    .ag-inv-fila__monto--aporte { color: #4ecca3; }
+    .ag-inv-fila__monto--retiro { color: #d94060; }
     @media (min-width: 700px) {
       .ag-horario-tabla { font-size: .74rem; }
       .ag-horario-tabla th { padding: .5rem .4rem; }
@@ -587,6 +610,41 @@
               <div class="ag-fin-movs" id="agFinMovs"></div>
               <p class="ag-empty" id="agFinMovsEmpty" style="display:none">Nada cargado en este período.</p>
             </div>
+          </div>
+
+          <div class="ag-fin-pie-card" style="margin-top:1.2rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:.2rem">
+              <p class="ag-section-label" style="margin:0">💰 Ahorros</p>
+              <div class="ag-inv-dolar" id="agInvDolarWrap">
+                <span class="ag-inv-dolar__label">💱 Dólar:</span>
+                <span class="ag-inv-dolar__valor" id="agInvDolarValor">sin cargar</span>
+                <input type="number" id="agInvDolarInput" class="form-input ag-inv-dolar__input" placeholder="Ej: 1250" min="0" step="0.01" style="display:none"/>
+                <button class="btn btn--sm" id="agBtnEditarDolar">✎</button>
+                <button class="btn btn--primary btn--sm" id="agBtnGuardarDolar" style="display:none">Guardar</button>
+              </div>
+            </div>
+            <p style="font-size:.7rem;color:var(--muted);margin:0 0 1rem">Se cargan desde "+ Nuevo" eligiendo "💰 Ahorro". Esta plata no entra en el gráfico de gastos ni en el balance de arriba — es dinero que estás guardando, no un gasto.</p>
+            <div class="ag-stats" style="margin-bottom:1.2rem">
+              <div class="ag-stat-card">
+                <span class="ag-stat-card__icon">💵</span>
+                <div><p class="ag-stat-card__label">Ahorrado en pesos</p><p class="ag-stat-card__num" id="agInvBalanceARS">$0</p></div>
+              </div>
+              <div class="ag-stat-card">
+                <span class="ag-stat-card__icon">💴</span>
+                <div>
+                  <p class="ag-stat-card__label">Ahorrado en dólares</p>
+                  <p class="ag-stat-card__num" id="agInvBalanceUSD">US$0</p>
+                  <p class="ag-inv-dolar-equiv" id="agInvBalanceUSDenPesos"></p>
+                </div>
+              </div>
+              <div class="ag-stat-card">
+                <span class="ag-stat-card__icon">🐷</span>
+                <div><p class="ag-stat-card__label">Total en pesos</p><p class="ag-stat-card__num" id="agInvTotalPesos">$0</p></div>
+              </div>
+            </div>
+            <div id="agInvGrafico" style="margin-bottom:1.2rem"></div>
+            <div id="agInvLista"></div>
+            <p class="ag-empty" id="agInvEmpty" style="display:none;padding:1rem 0">Todavía no cargaste ningún ahorro.</p>
           </div>
         </div>
 
@@ -1081,8 +1139,23 @@
       <div class="ag-pago-toggle" style="display:flex;margin-bottom:1rem" id="agMovNaturaleza">
         <button type="button" class="ag-pago-btn activo-pagado" data-nat="ingreso">💚 Ingreso</button>
         <button type="button" class="ag-pago-btn" data-nat="gasto">💸 Gasto</button>
+        <button type="button" class="ag-pago-btn" data-nat="ahorro">💰 Ahorro</button>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="agMovAhorroTipoWrap" style="display:none">
+        <label class="form-label">Tipo</label>
+        <div class="ag-fin-periodo" id="agMovAhorroTipoToggle">
+          <button type="button" class="ag-fin-periodo__btn activo" data-tipo="aporte">+ Aporte</button>
+          <button type="button" class="ag-fin-periodo__btn" data-tipo="retiro">− Retiro</button>
+        </div>
+      </div>
+      <div class="form-group" id="agMovAhorroMonedaWrap" style="display:none">
+        <label class="form-label">Moneda</label>
+        <div class="ag-fin-periodo" id="agMovAhorroMonedaToggle">
+          <button type="button" class="ag-fin-periodo__btn activo" data-moneda="ARS">$ Pesos</button>
+          <button type="button" class="ag-fin-periodo__btn" data-moneda="USD">US$ Dólares</button>
+        </div>
+      </div>
+      <div class="form-group" id="agMovCategoriaWrap">
         <label class="form-label">Categoría</label>
         <div class="ag-tipo-select" id="agMovCategoriaSelect"></div>
       </div>
@@ -1094,7 +1167,7 @@
         <label class="form-label">Descripción (opcional)</label>
         <input type="text" id="agMovDesc" class="form-input" placeholder="Ej: Fideos y salsa"/>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="agMovBilleteraWrap">
         <label class="form-label">Billetera / banco</label>
         <div class="ag-tipo-select" id="agMovBilleteraSelect"></div>
       </div>
