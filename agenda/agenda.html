@@ -375,10 +375,14 @@
     .ag-proyecto-card__link { font-size: .72rem; color: var(--cyan); background: var(--cyan-dim); border: 1px solid var(--cyan-mid); padding: .3rem .7rem; border-radius: 20px; text-decoration: none; }
     .ag-proyecto-card__link:hover { background: var(--cyan-mid); }
 
-    .ag-examen-row { display: flex; align-items: center; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .9rem; margin-bottom: .5rem; }
+    .ag-examen-row { display: flex; align-items: center; gap: .8rem; background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; padding: .7rem .9rem; margin-bottom: .5rem; }
+    .ag-examen-row--examen { background: rgba(217, 106, 20, .1); border-color: rgba(217, 106, 20, .45); }
+    .ag-examen-row--pasado { opacity: .5; }
     .ag-examen-row__nombre { flex: 1; color: var(--text); font-weight: 700; font-size: .85rem; }
+    .ag-examen-row__materia { font-size: .68rem; color: var(--muted); font-weight: 600; }
     .ag-examen-row__dias { font-size: .78rem; font-weight: 700; color: var(--cyan); white-space: nowrap; }
     .ag-examen-row__dias--pasado { color: var(--muted); font-weight: 500; }
+    .ag-examen-row--examen .ag-examen-row__dias:not(.ag-examen-row__dias--pasado) { color: #e08a3c; }
     .ag-examen-add { display: none; gap: .6rem; flex-wrap: wrap; align-items: flex-end; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: .9rem; margin-bottom: 1rem; }
     .ag-examen-add .form-group { margin-bottom: 0; flex: 1; min-width: 140px; }
 
@@ -452,7 +456,7 @@
         <button class="ag-nav-item" data-vista="calendario">📅 Calendario</button>
         <button class="ag-nav-item" data-vista="carpetas">📝 Notas</button>
         <button class="ag-nav-item" data-vista="finanzas">💰 Finanzas</button>
-        <button class="ag-nav-item" data-vista="estudio">📚 Estudio</button>
+        <button class="ag-nav-item" data-vista="estudio">🎓 Facultad</button>
         <button class="ag-nav-item" data-vista="pantalla">📱 Pantalla</button>
         <button class="ag-nav-item" data-vista="proyectos">🗂️ Proyectos</button>
         <button class="ag-nav-item" data-vista="entreno">💪 Entreno</button>
@@ -670,6 +674,43 @@
             <span id="agExamenBannerTexto"></span>
           </div>
 
+          <div class="ag-fin-pie-card" style="margin-bottom:1.4rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;gap:.6rem">
+              <p class="ag-section-label" style="margin:0">🎯 Trabajos y exámenes</p>
+              <div style="display:flex;gap:.5rem">
+                <button class="btn btn--sm" id="agBtnMateriasExamen">⚙ Materias</button>
+                <button class="btn btn--primary btn--sm" id="agBtnNuevoExamen">+ Agregar</button>
+              </div>
+            </div>
+            <div class="ag-examen-add" id="agExamenAddWrap">
+              <input type="hidden" id="agExamenEditId"/>
+              <div class="form-group" style="flex:0 0 100%">
+                <label class="form-label">Tipo</label>
+                <div class="ag-fin-periodo" id="agExamenTipoToggle">
+                  <button type="button" class="ag-fin-periodo__btn activo" data-tipo="examen">🎯 Examen</button>
+                  <button type="button" class="ag-fin-periodo__btn" data-tipo="trabajo">📄 Trabajo</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nombre</label>
+                <input type="text" id="agExamenNombreInput" class="form-input" placeholder="Ej: Parcial, Entrega TP2..."/>
+              </div>
+              <div class="form-group" style="flex:0 0 170px">
+                <label class="form-label">Materia</label>
+                <select id="agExamenMateriaInput" class="form-input"><option value="">Sin materia</option></select>
+              </div>
+              <div class="form-group" style="flex:0 0 160px">
+                <label class="form-label">Fecha</label>
+                <input type="date" id="agExamenFechaInput" class="form-input"/>
+              </div>
+              <button class="btn btn--primary btn--sm" id="agBtnGuardarExamen">Guardar</button>
+              <button class="btn btn--sm" id="agBtnCancelarEdicionExamen" style="display:none">Cancelar</button>
+            </div>
+            <p class="form-error" id="agExamenError"></p>
+            <div id="agExamenesLista"></div>
+            <p class="ag-empty" id="agExamenesEmpty" style="display:none;padding:1rem 0">Todavía no cargaste ningún trabajo ni examen.</p>
+          </div>
+
           <div class="ag-fin-grid">
             <div class="ag-fin-pie-card">
               <p class="ag-section-label" style="margin-bottom:1.1rem">⏱️ Temporizador de estudio</p>
@@ -709,26 +750,6 @@
             </div>
             <div class="ag-fin-leyenda" id="agEstudioLeyenda"></div>
             <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:.9rem">Total esta semana: <strong id="agEstudioTotalSemana" style="color:var(--cyan)">0 min</strong></p>
-          </div>
-
-          <div style="margin-top:1.2rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
-              <p class="ag-section-label">🎯 Exámenes</p>
-              <button class="btn btn--sm" id="agBtnNuevoExamen">+ Agregar examen</button>
-            </div>
-            <div class="ag-examen-add" id="agExamenAddWrap">
-              <div class="form-group">
-                <label class="form-label">Nombre</label>
-                <input type="text" id="agExamenNombreInput" class="form-input" placeholder="Ej: Análisis Matemático II"/>
-              </div>
-              <div class="form-group" style="flex:0 0 160px">
-                <label class="form-label">Fecha</label>
-                <input type="date" id="agExamenFechaInput" class="form-input"/>
-              </div>
-              <button class="btn btn--primary btn--sm" id="agBtnGuardarExamen">Guardar</button>
-            </div>
-            <p class="form-error" id="agExamenError"></p>
-            <div id="agExamenesLista"></div>
           </div>
         </div>
 
@@ -1279,6 +1300,30 @@
       <div style="display:flex;gap:.5rem">
         <button class="btn btn--primary" style="flex:1" id="agBtnGuardarFraseEntreno">Agregar</button>
         <button class="btn" id="agBtnCancelarEdicionFraseEntreno" style="display:none">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: materias de la facultad (con color propio) -->
+  <div class="modal-overlay" id="agModalMateriasExamen">
+    <div class="modal">
+      <button class="modal__close" id="agBtnCerrarModalMateriasExamen">✕</button>
+      <h2 class="modal__title">Materias</h2>
+      <p style="font-size:.72rem;color:var(--muted);margin:-.6rem 0 1rem">Cada materia con su color — aparece como un detalle a un costado de cada trabajo o examen.</p>
+      <div id="agMateriasExamenLista" style="margin-bottom:1.2rem"></div>
+      <input type="hidden" id="agMateriaExamenEditId"/>
+      <div class="form-group">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="agMateriaExamenNombre" class="form-input" placeholder="Ej: Redes y Comunicaciones"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <input type="color" id="agMateriaExamenColor" class="form-input" value="#159A9C" style="height:40px;padding:.2rem"/>
+      </div>
+      <p class="form-error" id="agMateriaExamenError"></p>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn--primary" style="flex:1" id="agBtnGuardarMateriaExamen">Agregar</button>
+        <button class="btn" id="agBtnCancelarEdicionMateriaExamen" style="display:none">Cancelar</button>
       </div>
     </div>
   </div>

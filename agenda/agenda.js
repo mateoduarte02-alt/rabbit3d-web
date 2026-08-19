@@ -1287,6 +1287,7 @@
   // ══════════════════════════════════════════
   let tareas = []
   let examenes = []
+  let examenMaterias = []
   let sesiones = []
 
   let timerModo = 'estudio'       // 'estudio' | 'descanso'
@@ -1300,6 +1301,7 @@
 
   async function cargarEstudioTab() {
     if (!estudioCargado) { actualizarDisplayTimer(); estudioCargado = true }
+    await cargarExamenMaterias()
     await Promise.all([cargarTareas(), cargarExamenes(), cargarSesiones(), cargarCategoriasHorario(), cargarOrdenMateriasHorario()])
     await cargarHorarios()
     renderResumenSemanal()
@@ -1556,54 +1558,205 @@
     renderExamenesLista()
   }
 
+  // ── Materias (color propio, compartido por trabajos y exámenes) ──────
+  async function cargarExamenMaterias() {
+    const { data, error } = await supabase.from('estudio_examen_materias').select('*').order('orden', { ascending: true }).order('id', { ascending: true })
+    if (error) { console.error('[facultad] error al cargar materias:', error); return }
+    examenMaterias = data || []
+    renderExamenMateriaSelect()
+  }
+
+  function renderExamenMateriaSelect() {
+    const sel = document.getElementById('agExamenMateriaInput')
+    const actual = sel.value
+    sel.innerHTML = '<option value="">Sin materia</option>' + examenMaterias.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')
+    sel.value = actual
+  }
+
+  function renderExamenMateriasLista() {
+    const cont = document.getElementById('agMateriasExamenLista')
+    if (!examenMaterias.length) { cont.innerHTML = '<p class="ag-empty" style="padding:.6rem 0">Todavía no creaste ninguna materia.</p>'; return }
+    cont.innerHTML = examenMaterias.map(m => `
+      <div class="ag-entreno-meta-fila">
+        <span class="ag-entreno-meta-fila__color" style="background:${m.color}"></span>
+        <span class="ag-entreno-meta-fila__nombre">${m.nombre}</span>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarMateriaExamen(${m.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarMateriaExamen(${m.id})">🗑</button>
+      </div>`).join('')
+  }
+
+  function resetFormMateriaExamen() {
+    document.getElementById('agMateriaExamenEditId').value = ''
+    document.getElementById('agMateriaExamenNombre').value = ''
+    document.getElementById('agMateriaExamenColor').value = '#159A9C'
+    document.getElementById('agMateriaExamenError').textContent = ''
+    document.getElementById('agBtnGuardarMateriaExamen').textContent = 'Agregar'
+    document.getElementById('agBtnCancelarEdicionMateriaExamen').style.display = 'none'
+  }
+
+  window._agEditarMateriaExamen = function (id) {
+    const m = examenMaterias.find(x => x.id === id)
+    if (!m) return
+    document.getElementById('agMateriaExamenEditId').value = m.id
+    document.getElementById('agMateriaExamenNombre').value = m.nombre
+    document.getElementById('agMateriaExamenColor').value = m.color
+    document.getElementById('agBtnGuardarMateriaExamen').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionMateriaExamen').style.display = 'inline-flex'
+  }
+  document.getElementById('agBtnCancelarEdicionMateriaExamen').addEventListener('click', resetFormMateriaExamen)
+
+  window._agEliminarMateriaExamen = async function (id) {
+    if (!confirm('¿Eliminar esta materia? Los trabajos/exámenes que la tenían quedan sin materia (no se borran).')) return
+    const { error } = await supabase.from('estudio_examen_materias').delete().eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    await cargarExamenMaterias()
+    renderExamenMateriasLista()
+    await cargarExamenes()
+  }
+
+  document.getElementById('agBtnGuardarMateriaExamen').addEventListener('click', async () => {
+    const errEl = document.getElementById('agMateriaExamenError')
+    errEl.textContent = ''
+    const id = document.getElementById('agMateriaExamenEditId').value
+    const datos = {
+      nombre: document.getElementById('agMateriaExamenNombre').value.trim(),
+      color: document.getElementById('agMateriaExamenColor').value,
+    }
+    if (!datos.nombre) { errEl.textContent = 'El nombre es obligatorio.'; return }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('estudio_examen_materias').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('estudio_examen_materias').insert([{ ...datos, orden: examenMaterias.length }]))
+    }
+    if (error) { errEl.textContent = 'Error al guardar: ' + error.message; return }
+    await cargarExamenMaterias()
+    renderExamenMateriasLista()
+    resetFormMateriaExamen()
+    await cargarExamenes()
+  })
+
+  document.getElementById('agBtnMateriasExamen').addEventListener('click', () => {
+    renderExamenMateriasLista()
+    resetFormMateriaExamen()
+    document.getElementById('agModalMateriasExamen').classList.add('activo')
+  })
+  document.getElementById('agBtnCerrarModalMateriasExamen').addEventListener('click', () =>
+    document.getElementById('agModalMateriasExamen').classList.remove('activo'))
+
+  // ── Trabajos y exámenes ───────────────────────────────────────────
   function renderExamenBanner() {
     const banner = document.getElementById('agExamenBanner')
     const proximo = examenes.filter(e => diasHasta(e.fecha) >= 0).sort((a, b) => diasHasta(a.fecha) - diasHasta(b.fecha))[0]
     if (!proximo) { banner.style.display = 'none'; return }
     const dias = diasHasta(proximo.fecha)
+    const icono = proximo.tipo === 'trabajo' ? '📄' : '🎯'
+    const palabra = proximo.tipo === 'trabajo' ? 'la entrega de' : ''
     banner.style.display = 'block'
     document.getElementById('agExamenBannerTexto').innerHTML = dias === 0
-      ? `🎯 <strong>${proximo.nombre}</strong> es hoy — ¡mucha suerte!`
-      : `🎯 Faltan <strong>${dias}</strong> día${dias === 1 ? '' : 's'} para <strong>${proximo.nombre}</strong>`
+      ? `${icono} <strong>${proximo.nombre}</strong> es hoy — ¡mucha suerte!`
+      : `${icono} Faltan <strong>${dias}</strong> día${dias === 1 ? '' : 's'} para ${palabra} <strong>${proximo.nombre}</strong>`
   }
 
   function renderExamenesLista() {
     const cont = document.getElementById('agExamenesLista')
-    if (examenes.length === 0) { cont.innerHTML = '<p class="ag-empty">Todavía no cargaste ningún examen.</p>'; return }
+    const empty = document.getElementById('agExamenesEmpty')
+    if (examenes.length === 0) { cont.innerHTML = ''; empty.style.display = 'block'; return }
+    empty.style.display = 'none'
+    const matPorId = Object.fromEntries(examenMaterias.map(m => [m.id, m]))
     cont.innerHTML = examenes.map(e => {
       const dias = diasHasta(e.fecha)
       const pasado = dias < 0
       const texto = pasado ? 'Ya pasó' : (dias === 0 ? 'Hoy' : `Faltan ${dias} día${dias === 1 ? '' : 's'}`)
+      const icono = e.tipo === 'trabajo' ? '📄' : '🎯'
+      const mat = matPorId[e.materia_id]
+      const clases = ['ag-examen-row']
+      if (e.tipo === 'examen') clases.push('ag-examen-row--examen')
+      if (pasado) clases.push('ag-examen-row--pasado')
+      const borde = mat ? `border-left-color:${mat.color}` : ''
       return `
-      <div class="ag-examen-row">
-        <span class="ag-examen-row__nombre">${e.nombre}</span>
+      <div class="${clases.join(' ')}" style="${borde}">
+        <div style="flex:1;min-width:0">
+          <span class="ag-examen-row__nombre">${icono} ${e.nombre}</span>
+          ${mat ? `<div class="ag-examen-row__materia">${mat.nombre}</div>` : ''}
+        </div>
         <span class="ag-examen-row__dias ${pasado ? 'ag-examen-row__dias--pasado' : ''}">${texto}</span>
-        <button class="ag-item__btn" onclick="window._agEliminarExamen(${e.id})">🗑</button>
+        <button class="ag-item__btn" title="Editar" onclick="window._agEditarExamen(${e.id})">✎</button>
+        <button class="ag-item__btn" title="Eliminar" onclick="window._agEliminarExamen(${e.id})">🗑</button>
       </div>`
     }).join('')
   }
 
   window._agEliminarExamen = async function (id) {
-    if (!confirm('¿Eliminar este examen?')) return
+    if (!confirm('¿Eliminar esto?')) return
     const { error } = await supabase.from('estudio_examenes').delete().eq('id', id)
     if (error) { alert('Error: ' + error.message); return }
     await cargarExamenes()
   }
 
+  window._agEditarExamen = function (id) {
+    const e = examenes.find(x => x.id === id)
+    if (!e) return
+    document.getElementById('agExamenEditId').value = e.id
+    document.getElementById('agExamenNombreInput').value = e.nombre
+    document.getElementById('agExamenFechaInput').value = e.fecha
+    document.getElementById('agExamenMateriaInput').value = e.materia_id || ''
+    examenTipoForm = e.tipo || 'examen'
+    document.querySelectorAll('#agExamenTipoToggle .ag-fin-periodo__btn').forEach(b => b.classList.toggle('activo', b.dataset.tipo === examenTipoForm))
+    document.getElementById('agBtnGuardarExamen').textContent = 'Guardar cambios'
+    document.getElementById('agBtnCancelarEdicionExamen').style.display = 'inline-flex'
+    document.getElementById('agExamenAddWrap').style.display = 'flex'
+    document.getElementById('agExamenError').textContent = ''
+  }
+
+  function resetFormExamen() {
+    document.getElementById('agExamenEditId').value = ''
+    document.getElementById('agExamenNombreInput').value = ''
+    document.getElementById('agExamenFechaInput').value = ''
+    document.getElementById('agExamenMateriaInput').value = ''
+    examenTipoForm = 'examen'
+    document.querySelectorAll('#agExamenTipoToggle .ag-fin-periodo__btn').forEach(b => b.classList.toggle('activo', b.dataset.tipo === 'examen'))
+    document.getElementById('agBtnGuardarExamen').textContent = 'Guardar'
+    document.getElementById('agBtnCancelarEdicionExamen').style.display = 'none'
+    document.getElementById('agExamenError').textContent = ''
+  }
+  document.getElementById('agBtnCancelarEdicionExamen').addEventListener('click', () => {
+    resetFormExamen()
+    document.getElementById('agExamenAddWrap').style.display = 'none'
+  })
+
+  let examenTipoForm = 'examen'
+  document.getElementById('agExamenTipoToggle').addEventListener('click', e => {
+    const btn = e.target.closest('.ag-fin-periodo__btn')
+    if (!btn) return
+    document.querySelectorAll('#agExamenTipoToggle .ag-fin-periodo__btn').forEach(b => b.classList.remove('activo'))
+    btn.classList.add('activo')
+    examenTipoForm = btn.dataset.tipo
+  })
+
   document.getElementById('agBtnNuevoExamen').addEventListener('click', () => {
     const wrap = document.getElementById('agExamenAddWrap')
-    wrap.style.display = wrap.style.display === 'flex' ? 'none' : 'flex'
+    const abriendo = wrap.style.display !== 'flex'
+    if (abriendo) resetFormExamen()
+    wrap.style.display = abriendo ? 'flex' : 'none'
   })
   document.getElementById('agBtnGuardarExamen').addEventListener('click', async () => {
+    const id = document.getElementById('agExamenEditId').value
     const nombre = document.getElementById('agExamenNombreInput').value.trim()
     const fecha = document.getElementById('agExamenFechaInput').value
+    const materiaId = document.getElementById('agExamenMateriaInput').value || null
     const errEl = document.getElementById('agExamenError')
     errEl.textContent = ''
     if (!nombre || !fecha) { errEl.textContent = 'Completá nombre y fecha.'; return }
-    const { error } = await supabase.from('estudio_examenes').insert([{ nombre, fecha }])
+    const datos = { nombre, fecha, tipo: examenTipoForm, materia_id: materiaId }
+    let error
+    if (id) {
+      ;({ error } = await supabase.from('estudio_examenes').update(datos).eq('id', id))
+    } else {
+      ;({ error } = await supabase.from('estudio_examenes').insert([datos]))
+    }
     if (error) { errEl.textContent = 'Error: ' + error.message; return }
-    document.getElementById('agExamenNombreInput').value = ''
-    document.getElementById('agExamenFechaInput').value = ''
+    resetFormExamen()
     document.getElementById('agExamenAddWrap').style.display = 'none'
     await cargarExamenes()
   })
@@ -3277,7 +3430,7 @@
     { id: 'calendario',    icono: '📅', label: 'Calendario' },
     { id: 'carpetas',      icono: '📝', label: 'Notas' },
     { id: 'finanzas',      icono: '💰', label: 'Finanzas' },
-    { id: 'estudio',       icono: '📚', label: 'Estudio' },
+    { id: 'estudio',       icono: '🎓', label: 'Facultad' },
     { id: 'pantalla',      icono: '📱', label: 'Pantalla' },
     { id: 'proyectos',     icono: '🗂️', label: 'Proyectos' },
     { id: 'entreno',       icono: '💪', label: 'Entreno' },
