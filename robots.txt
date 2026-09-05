@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /agenda/
+
+Sitemap: https://lamadriguera.site/sitemap.xml
